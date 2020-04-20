@@ -20,7 +20,7 @@ mode = ''
 path = str(m.dir_path)
 path = str(np.core.defchararray.replace(np.array(path),"\\","/"))
 
-# Uses phy.log to check which amplitude type is being used2
+# Uses phy.log to check which amplitude type is being used
 try:
     t=time.time()
     f = open(path+'/phy.log','r')
