@@ -4,8 +4,9 @@
 # Installation/Configuration of Phy
 A modified version of instructions found here: https://github.com/cortex-lab/phy/blob/master/README.md.
 
-## For this modified version of phy:
-First download this repository (clone or download & extract .zip file) to some local directory (it will need to remain in this directory even after installation for phy to work).
+**First, download this repository (clone or download & extract .zip file) to some local directory (it will need to remain in this directory even after installation for phy to work).**
+
+**Extract phy.zip and phylib.zip files contained to this directory too!**
 
 ## To install Anaconda:
 
@@ -13,7 +14,7 @@ First download this repository (clone or download & extract .zip file) to some l
 2. Launch the executable and follow the installation process
 3. Launch Anaconda Prompt (Miniconda3)
 
-## To install phy:
+## To install modified version of phy:
 
 In Anaconda prompt run the following commands:
 
