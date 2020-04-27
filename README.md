@@ -71,7 +71,7 @@ Next, enter the following commands in the Anaconda prompt:
 
 # Additional Information:
 
-## Example params.py:
+## Example params.py file:
 
 dat\_path = [r&#39;D:\dl59\20181207\dl59\_g0\_t100.imec.ap.bin\_concat.bin&#39;]
 
@@ -84,16 +84,3 @@ offset = 0
 sample\_rate = 30000.
 
 hp\_filtered = False
-
-## To solve matplotlib error when adding EventView:
-
-First, launch the Anaconda prompt.
-
-Next, enter the following commands in the Anaconda prompt:
-
-1. pip uninstall -y numpy
-2. pip uninstall -y setuptools
-3. pip install setuptools
-4. pip install numpy==1.16.4
-5. pip install matplotlib==3.1.0
-6. conda update --all
