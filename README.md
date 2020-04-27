@@ -4,7 +4,7 @@
 # Installation/Configuration of Phy
 A modified version of instructions found here: https://github.com/cortex-lab/phy/blob/master/README.md.
 
-## For this modified installation:
+## For this modified version of phy:
 First download this repository (clone or download & extract .zip file) to some local directory (it will need to remain in this directory even after installation for phy to work).
 
 ## To install Anaconda:
