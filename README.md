@@ -13,7 +13,9 @@ First download this repository (clone or download & extract .zip file) to some l
 2. Launch the executable and follow the installation process
 3. Launch Anaconda Prompt (Miniconda3)
 
-## In Anaconda prompt run the following commands:
+## To install phy:
+
+In Anaconda prompt run the following commands:
 
 1. conda create -n phy2 python=3.7 pip numpy matplotlib scipy scikit-learn h5py pyqt cython pillow -y
 2. conda activate phy2
@@ -27,14 +29,17 @@ Done!
 Next, you&#39;ll want to navigate to your data directory (containing params.py), and run:
 phy template-gui params.py
 
-## To use splitter/outlier rejection modules:
+## To use splitter/outlier rejection plugins:
 
 - Make sure the IPythonView is open in phy!
+
 - Hit &#39;A&#39; at least once for splitter to work.
+
 - Shortcut key bindings in phy are as follows:
 
-1. Outlier rejection plugin (single cluster only)
-2. Splitter plugin (single cluster only)
+    1 : Outlier rejection plugin (single cluster only)
+    
+    2 : Splitter plugin (single cluster only)
 
 ## To enable EventView:
 
