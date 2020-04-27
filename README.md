@@ -1,10 +1,11 @@
 # phytools
  Repository containing modified cortex-lab/phy clone and additional scripts
- 
-# **First extract phytools.zip to some local directory (it will need to remain in this directory even after installation for phy to work)**
 
 # Installation/Configuration of Phy
-(modified version of instructions here: https://github.com/cortex-lab/phy/blob/master/README.md)
+A modified version of instructions found here: https://github.com/cortex-lab/phy/blob/master/README.md.
+
+## For this modified installation:
+First download this repository (clone or download & extract .zip file) to some local directory (it will need to remain in this directory even after installation for phy to work).
 
 ## To install Anaconda:
 
@@ -22,7 +23,6 @@
 6. pip install -e .
 
 Done!
-
 
 Next, you&#39;ll want to navigate to your data directory (containing params.py), and run:
 phy template-gui params.py
