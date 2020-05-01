@@ -29,7 +29,7 @@ try:
     try:
         contents_mode = contents_mode[-1]
     except IndexError:
-        print('Hit \'A\' once in order to use the splitter plugin!')
+        print('splitter.py: hit \'A\' once to use the plugin.')
         sys.exit(0)
     mode=contents[contents_mode].split()
     mode=mode[mode.index('type:')+1].split('.')[0]
@@ -351,8 +351,14 @@ class Window(QWidget):
 if 'screen' in dir():
     _quit()
 
+cid=None
 
-(cid,spikes,nspikes,chan,mstdict,sub_spikes) = get_spikes()
+try:
+    (cid,spikes,nspikes,chan,mstdict,sub_spikes) = get_spikes()
+except IndexError:
+    sys.stderr.write("splitter.py: select 1 cluster to use the plugin.\n")
+    sys.exit(0)
+
 splits={}
 k=[]
 

@@ -375,7 +375,11 @@ def clear_out():
 class suDialog(QDialog):
     def __init__(self):
         QDialog.__init__(self)
-        self.setWindowTitle('Outlier Rejector: Cluster '+str(s.selected[0]))
+        try:
+            self.setWindowTitle('Outlier Rejector: Cluster '+str(s.selected[0]))
+        except IndexError:       
+            sys.stderr.write("outlier.py: select a cluster to use the plugin.\n")
+            sys.exit(0)
         layout = QGridLayout()
         self.l1 = QLabel('# of channels:')
         self.e1 = QLineEdit('6')
@@ -589,39 +593,43 @@ dialog.exec()
 
 
 if not dialog.canceled:
-    # Get parameters
-    res = dialog.get_entry()
-    (cid,spikes,nspikes,ngs,chan,splits,mstdict,wavewin) = get_spikes(res)
-    colors = []
+    if len(s.selected)==1:
+        # Get parameters
+        res = dialog.get_entry()
+        (cid,spikes,nspikes,ngs,chan,splits,mstdict,wavewin) = get_spikes(res)
+        colors = []
 
-    k = splits.keys()
-    pcs = {}
+        k = splits.keys()
+        pcs = {}
 
-    screen = Window()
-    screen.show()
-    ax1=screen.ax1
-    ax2=screen.ax2
-    ax3=screen.ax3
-    fix_axis(ax1,12)
-    fix_axis(ax2,8)
-    fix_axis(ax3,8)
+        screen = Window()
+        screen.show()
+        ax1=screen.ax1
+        ax2=screen.ax2
+        ax3=screen.ax3
+        fix_axis(ax1,12)
+        fix_axis(ax2,8)
+        fix_axis(ax3,8)
 
-    plot_k = [*mstdict]
-    plot_k.remove('w')
-    chunks = [str(i+1) for i in np.arange(ngs)]
-    screen.list1.addItems(plot_k)
-    screen.list2.addItems(chunks)
-    screen.xcb.addItems(plot_k)
-    screen.ycb.addItems(plot_k)
-    screen.zcb.addItems(plot_k)
-    screen.xcb.setCurrentIndex(0)
-    screen.ycb.setCurrentIndex(1)
-    screen.zcb.setCurrentIndex(2)
-    screen.list2.blockSignals(True)
-    for i in np.arange(ngs):
-        if i==ngs-1:
-            screen.list2.blockSignals(False)
-        screen.list2.item(i).setSelected(True)
-    screen.show()
+        plot_k = [*mstdict]
+        plot_k.remove('w')
+        chunks = [str(i+1) for i in np.arange(ngs)]
+        screen.list1.addItems(plot_k)
+        screen.list2.addItems(chunks)
+        screen.xcb.addItems(plot_k)
+        screen.ycb.addItems(plot_k)
+        screen.zcb.addItems(plot_k)
+        screen.xcb.setCurrentIndex(0)
+        screen.ycb.setCurrentIndex(1)
+        screen.zcb.setCurrentIndex(2)
+        screen.list2.blockSignals(True)
+        for i in np.arange(ngs):
+            if i==ngs-1:
+                screen.list2.blockSignals(False)
+            screen.list2.item(i).setSelected(True)
+        screen.show()
+    else:
+        sys.stderr.write("outlier.py: select 1 cluster to use the plugin.\n")
+        sys.exit(0)
 else:
     sys.exit(0)
