@@ -1,14 +1,11 @@
 # phytools
  Repository containing modified cortex-lab/phy clone and additional scripts
 
-# **After downloading this repository:** 
-## **First extract phytools.zip to some local directory (it will need to remain in this directory even after installation for phy to work)**
 
-1. Download or clone this repository to a stable directory.
-2. Extract phytools to this directory.
+# Installation/Configuration of Phy and phytools
 
-# Installation/Configuration of Phy
-(modified version of instructions here: https://github.com/cortex-lab/phy/blob/master/README.md)
+1. Download https://github.com/mswallac/phytools/blob/master/phytools.zip
+2. Extract this file to a stable directory (this is where your installation of phy will 'live')
 
 ## To install Anaconda:
 
