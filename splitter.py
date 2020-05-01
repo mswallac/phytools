@@ -50,7 +50,6 @@ def fix_axis(ax,textsize):
     ax.axis('on')
 
 def _quit():
-    matplotlib.pyplot.style.use('dark_background')
     screen.close()
 
 # Split current selection into two clusters (highlighted/not highlighted)
@@ -348,6 +347,9 @@ class Window(QWidget):
             self.list2.item(i).setSelected(False)
         onselect()
 
+# Check if a previous instance of app is lingering -> means they cant be run simultaneously
+if 'screen' in dir():
+    _quit()
 
 
 (cid,spikes,nspikes,chan,mstdict,sub_spikes) = get_spikes()
@@ -376,3 +378,4 @@ if cid:
     cmap2 = matplotlib.pyplot.get_cmap("Paired")
     colors = []
     pcs = []
+    screen.show()

@@ -277,7 +277,6 @@ def get_colors(x,y,z,inds):
     return cs
 
 def _quit():
-    matplotlib.pyplot.style.use('dark_background')
     screen.close()
 
 def _split():
@@ -580,6 +579,10 @@ class Window(QWidget):
                 self.list2.blockSignals(False)
             self.list2.item(i).setSelected(False)
 
+# Check if a previous instance of app is lingering -> means they cant be run simultaneously
+if 'screen' in dir():
+    _quit()
+
 # Start-up
 dialog = suDialog()
 dialog.exec()
@@ -619,6 +622,6 @@ if not dialog.canceled:
         if i==ngs-1:
             screen.list2.blockSignals(False)
         screen.list2.item(i).setSelected(True)
-
+    screen.show()
 else:
     sys.exit(0)

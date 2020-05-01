@@ -1,12 +1,14 @@
 # phytools
  Repository containing modified cortex-lab/phy clone and additional scripts
 
+# **After downloading this repository:** 
+## **First extract phytools.zip to some local directory (it will need to remain in this directory even after installation for phy to work)**
+
+1. Download or clone this repository to a stable directory.
+2. Extract phytools to this directory.
+
 # Installation/Configuration of Phy
-A modified version of instructions found here: https://github.com/cortex-lab/phy/blob/master/README.md.
-
-**First, download this repository (clone or download & extract .zip file) to some local directory (it will need to remain in this directory even after installation for phy to work).**
-
-**Extract phy.zip and phylib.zip files contained to this directory too!**
+(modified version of instructions here: https://github.com/cortex-lab/phy/blob/master/README.md)
 
 ## To install Anaconda:
 
@@ -14,9 +16,7 @@ A modified version of instructions found here: https://github.com/cortex-lab/phy
 2. Launch the executable and follow the installation process
 3. Launch Anaconda Prompt (Miniconda3)
 
-## To install modified version of phy:
-
-In Anaconda prompt run the following commands:
+## In Anaconda prompt run the following commands:
 
 1. conda create -n phy2 python=3.7 pip numpy matplotlib scipy scikit-learn h5py pyqt cython pillow -y
 2. conda activate phy2
@@ -30,17 +30,14 @@ Done!
 Next, you&#39;ll want to navigate to your data directory (containing params.py), and run:
 phy template-gui params.py
 
-## To use splitter/outlier rejection plugins:
+## To use splitter/outlier rejection modules:
 
 - Make sure the IPythonView is open in phy!
-
 - Hit &#39;A&#39; at least once for splitter to work.
-
 - Shortcut key bindings in phy are as follows:
 
-    1 : Outlier rejection plugin (single cluster only)
-    
-    2 : Splitter plugin (single cluster only)
+1. Outlier rejection plugin (single cluster only)
+2. Splitter plugin (single cluster only)
 
 ## To enable EventView:
 
@@ -72,7 +69,7 @@ Next, enter the following commands in the Anaconda prompt:
 
 # Additional Information:
 
-## Example params.py file:
+## Example params.py:
 
 dat\_path = [r&#39;D:\dl59\20181207\dl59\_g0\_t100.imec.ap.bin\_concat.bin&#39;]
 
@@ -85,3 +82,16 @@ offset = 0
 sample\_rate = 30000.
 
 hp\_filtered = False
+
+## To solve matplotlib error when adding EventView:
+
+First, launch the Anaconda prompt.
+
+Next, enter the following commands in the Anaconda prompt:
+
+1. pip uninstall -y numpy
+2. pip uninstall -y setuptools
+3. pip install setuptools
+4. pip install numpy==1.16.4
+5. pip install matplotlib==3.1.0
+6. conda update --all
