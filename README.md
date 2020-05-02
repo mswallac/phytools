@@ -52,7 +52,7 @@ To generate a data directory to use with phy one may use:
 1. Kilosort output
 2. JRClust export
 
-Either of these options should produce a bunch of .npy files (x16). You could also add events.csv to enable eventView. Must also add outlier.py and splitter.py to use those. params.py should also have been using either option. phy.txt is a log file and may also be there.
+Either of these options should produce a bunch of .npy files (x16). You could also add events.csv to enable eventView. params.py should also have been generated using either option. phy.txt is a log file and may also be there.
 
 ## To launch Phy:
 
@@ -61,7 +61,7 @@ First, launch the Anaconda prompt.
 Next, enter the following commands in the Anaconda prompt:
 
 1. cd C:/path/to/params.py
-2. conda activate phy2m (or whatever the environment name is)
+2. conda activate phy2 (or whatever the environment name is)
 3. phy template-gui params.py
 
 # Additional Information:
@@ -79,16 +79,3 @@ offset = 0
 sample\_rate = 30000.
 
 hp\_filtered = False
-
-## To solve matplotlib error when adding EventView:
-
-First, launch the Anaconda prompt.
-
-Next, enter the following commands in the Anaconda prompt:
-
-1. pip uninstall -y numpy
-2. pip uninstall -y setuptools
-3. pip install setuptools
-4. pip install numpy==1.16.4
-5. pip install matplotlib==3.1.0
-6. conda update --all
