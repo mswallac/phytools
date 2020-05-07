@@ -11,7 +11,7 @@
 
 1. Download Anaconda here: [https://docs.conda.io/en/latest/miniconda.html](https://docs.conda.io/en/latest/miniconda.html)
 2. Launch the executable and follow the installation process
-3. Launch Anaconda Prompt (Miniconda3)
+3. Launch Anaconda Prompt
 
 ## In Anaconda prompt run the following commands:
 
