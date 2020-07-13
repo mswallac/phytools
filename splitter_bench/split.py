@@ -12,9 +12,9 @@ def run_exp_split(exp_clust,s,m,c):
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
     nclusts = 20
-    if 0.1 < art_pct < 0.95:
+    if 0.1 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
-        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:8],nclusts)
+        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:10],nclusts)
         merged = merge_clusters(splits,real_spks,hyb_spks)
         check_res(merged,real_spks,hyb_spks)
         #s.actions.split(merged['r'])
@@ -23,14 +23,12 @@ def run_exp_split(exp_clust,s,m,c):
         return None
 
 def check_res(merged,real_spks,hyb_spks):
-    if len(merged['r'])>0 and len(merged['h'])>0:
-        check_r = np.in1d(real_spks,merged['r'])
-        r_pct = sum(check_r)/len(merged['r'])*100
-        check_h = np.in1d(real_spks,merged['h'])
-        h_pct = sum(check_r)/len(merged['h'])*100
-        print('Splitting exp: real %% %2.3f. hyb %% %2.3f'%(r_pct,h_pct))
-    else:
-        print('')
+    check_r = np.in1d(real_spks,merged['r'])
+    r_pct = sum(check_r)/len(merged['r'])*100
+    check_h = np.in1d(real_spks,merged['h'])
+    h_pct = sum(check_r)/len(merged['h'])*100
+    print('Splitting exp: real %% %2.3f. hyb %% %2.3f'%(r_pct,h_pct))
+    
 
 def get_spikes(cid,m,c):
     spikes = m.get_cluster_spikes(cid)

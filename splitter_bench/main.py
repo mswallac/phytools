@@ -8,7 +8,7 @@ import split
 # and clusters associated with the former two types.
 # Data directories
 raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01'
-hyb_data_dir = raw_data_dir+r'\test_hyb'
+hyb_data_dir = raw_data_dir+r'\test_hyb_bigunits'
 
 # Artificial Clusters (from output of hybridfactory)
 art_units = pd.read_csv(hyb_data_dir+r'\artificial_units-test.csv')
@@ -42,7 +42,7 @@ for i,clu in enumerate(gt_clus):
     print('Artificial cluster (based on %d) is on channel(s): %s'%(clu,np.unique(center_channels[hfact_idx])))
     hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
     hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
-    for x in hyb_clu_list[i].exp_clusts:
+    for x in hyb_clu_list[i].exp_clusts[0:3]:
     	if x['id'] not in prev_done:
 	    	prev_done.append(x['id'])
 	    	split.run_exp_split(x,s,m,c)
