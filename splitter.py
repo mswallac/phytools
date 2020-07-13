@@ -76,6 +76,7 @@ def _reset():
     screen.canvas2.draw()
     screen.canvas3.draw()
 
+# Performs clustering using euclidean distance/scipy heirarchical clustering
 def _cluster():
     global wavewin,cluster_done
     if not cluster_done:
@@ -142,6 +143,7 @@ def _cluster():
         screen.canvas2.draw()
         screen.canvas3.draw()
 
+# Callback for when menu items which change graphs change, updates all graphs
 def onselect():
     global wavewin
     lb_ind = screen.list2.selectedItems()
@@ -185,6 +187,7 @@ def onselect():
     screen.canvas2.draw()
     screen.canvas3.draw()
 
+# Initial loading and formatting of data from Phy structures
 def get_spikes():
     global wavewin,mode,ch
     cid = s.selected[0] if type(s.selected)=='list' else s.selected
@@ -208,36 +211,38 @@ def get_spikes():
     spike_amps = data[sub_spikes1]
     spike_times_f = m.spike_times[spikes]
     spike_amps_f = data
-    waves = np.asarray(c._get_waveforms_with_n_spikes(cid,nspikes,1).data)[:,:,0:len(chan)]
+    all_waves = m.get_cluster_spike_waveforms(cid)
+    waves = np.asarray(all_waves)[:,:,0:len(chan)]
     wavewin = waves.shape[1]
     waves_g = []
-    for i in np.arange(nspikes):
+    for i in np.arange(waves.shape[0]):
         temp = waves[i,:,:]
         temp2 = []
         for j in np.arange(len(chan)):
             temp2.extend(temp[:,j])
         waves_g.append(temp2)
     waves_g=np.transpose(np.array(waves_g))
-    features = m.get_features(spikes,chan)[:,:,0:3]
+    features = m.get_features(spikes,chan)[:,:,:]
     temp_w=[]
     temp_a=[]
     temp_t=[]
     temp_f0=[]
     temp_f1=[]
-    temp_f2=[]
+    #temp_f2=[]
     mstdict={}
     temp_a.extend(spike_amps_f[:])
     temp_t.extend(spike_times_f[:])
     temp_f0.extend(features[:,:,0])
     temp_f1.extend(features[:,:,1])
-    temp_f2.extend(features[:,:,2])
+    #temp_f2.extend(features[:,:,2])
     mstdict.update({'Time': np.array(temp_t),mode: np.array(temp_a),'w' : waves_g})
     for i,d in enumerate(chan):
         mstdict.update({"PC0 - Ch. "+str(d): np.array(temp_f0)[:,i]})
         mstdict.update({"PC1 - Ch. "+str(d): np.array(temp_f1)[:,i]})
-        mstdict.update({"PC2 - Ch. "+str(d): np.array(temp_f2)[:,i]})
+        #mstdict.update({"PC2 - Ch. "+str(d): np.array(temp_f2)[:,i]})
     return (cid,spikes,nspikes,chan,mstdict,sub_spikes)
 
+#Build main window and contained widgets, also defines button callbacks
 class Window(QWidget):
     def __init__(self):
         QWidget.__init__(self)
@@ -353,11 +358,7 @@ if 'screen' in dir():
 
 cid=None
 
-try:
-    (cid,spikes,nspikes,chan,mstdict,sub_spikes) = get_spikes()
-except IndexError:
-    sys.stderr.write("splitter.py: select 1 cluster to use the plugin.\n")
-    sys.exit(0)
+(cid,spikes,nspikes,chan,mstdict,sub_spikes) = get_spikes()
 
 splits={}
 k=[]
