@@ -43,7 +43,7 @@ class hyb_clu(object):
         self.clu_hid = self.clu_counts.idxmax()
         hyb_clu_nspks = self.clu_counts[self.clu_hid]
         self.exp_clusts = []
-        for x in self.clu_counts.index[0:10]:
+        for x in self.clu_counts.index[0:5]:
 	        c_clu_spikes = self.m.get_cluster_spikes(x)
         	if len(c_clu_spikes)>500:
 	            ref_idxs = np.where(self.matched_clus==x)

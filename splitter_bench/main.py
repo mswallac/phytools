@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from hyb_clu import hyb_clu
 import split
-
+import time
 # First, data directories, ground truth (GT) clusters, artificially added clusters,
 # and clusters associated with the former two types.
 # Data directories
@@ -30,7 +30,8 @@ hyb_clu_list = []
     # Add hybrid spike idx (all? -- as many as possible) after using spike times
 diffs = []
 idxs = []
-prev_done = []
+exp_dict = {'gt_clu':[],'hyb_clu':[],'clu_comp':[],'split_real_comp':[],'split_hyb_comp':[]}
+run_ct = 0
 for i,clu in enumerate(gt_clus):
     hfact_idx = np.where(true_units == clu)
     true_hyb_spike_times = np.asarray(art_units['timestep'])[hfact_idx]
@@ -42,7 +43,16 @@ for i,clu in enumerate(gt_clus):
     print('Artificial cluster (based on %d) is on channel(s): %s'%(clu,np.unique(center_channels[hfact_idx])))
     hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
     hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
-    for x in hyb_clu_list[i].exp_clusts[0:3]:
-    	if x['id'] not in prev_done:
-	    	prev_done.append(x['id'])
-	    	split.run_exp_split(x,s,m,c)
+    for x in hyb_clu_list[i].exp_clusts:
+        art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c)
+        if art_pct:
+            exp_dict['gt_clu'].append(clu)
+            exp_dict['hyb_clu'].append(x['id'])
+            exp_dict['split_real_comp'].append(real_res)
+            exp_dict['split_hyb_comp'].append(hyb_res)
+            exp_dict['clu_comp'].append(art_pct)
+            print('Successful split!')
+
+timestr = time.strftime("%Y%m%d-%H%M%S"+'.csv')
+exp_data = pd.DataFrame(data=exp_dict)
+exp_data.to_csv(timestr,index_label='experiment')

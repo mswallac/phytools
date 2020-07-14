@@ -14,20 +14,21 @@ def run_exp_split(exp_clust,s,m,c):
     nclusts = 20
     if 0.1 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
-        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:10],nclusts)
-        merged = merge_clusters(splits,real_spks,hyb_spks)
-        check_res(merged,real_spks,hyb_spks)
+        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:6],nclusts)
+        merged,clust_group = merge_clusters(splits,real_spks,hyb_spks,nclusts)
+        real_res,hyb_res = check_res(merged,clust_group,real_spks,hyb_spks)
         #s.actions.split(merged['r'])
-        return merged
+        return art_pct,real_res,hyb_res,merged
     else:
-        return None
+        return None,None,None,None
 
-def check_res(merged,real_spks,hyb_spks):
-    check_r = np.in1d(real_spks,merged['r'])
-    r_pct = sum(check_r)/len(merged['r'])*100
-    check_h = np.in1d(real_spks,merged['h'])
-    h_pct = sum(check_r)/len(merged['h'])*100
-    print('Splitting exp: real %% %2.3f. hyb %% %2.3f'%(r_pct,h_pct))
+def check_res(merged,clust_group,real_spks,hyb_spks):
+    real_in = np.in1d(real_spks,merged['r'])
+    real_res = sum(real_in)/len(merged['r'])
+    hyb_in = np.in1d(hyb_spks,merged['h'])
+    hyb_res = sum(hyb_in)/len(merged['h'])
+    return real_res,hyb_res
+
     
 
 def get_spikes(cid,m,c):
@@ -63,6 +64,7 @@ def get_spikes(cid,m,c):
         #mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
     return (cid,spikes,nspikes,chan,mstdict)
 
+
 def cluster(mstdict,spikes,feat_keys,nclusts):
     features = []
     splits = {}
@@ -77,7 +79,7 @@ def cluster(mstdict,spikes,feat_keys,nclusts):
         splits.update({(i): spikes[inter1]})
     return splits
 
-def merge_clusters(splits,gt1_spikes,gt2_spikes):
+def merge_clusters(splits,gt1_spikes,gt2_spikes,nclusts):
     # Figure out what % each cluster is composed of each given cluster
     keys = list(splits.keys())
     both_spikes = []
@@ -94,15 +96,37 @@ def merge_clusters(splits,gt1_spikes,gt2_spikes):
     merged = {}
     merged.update({'r':[],'h':[]})
 
+    prop_n_clusts = (len(gt1_spikes)/(len(gt1_spikes)+len(gt2_spikes)))*nclusts
+    prop_n_clusts = int(prop_n_clusts)
+
     # Merge clusters w/ best agreement.
     clust_group = [scores[0,i] > scores[1,i] for i,d in enumerate(keys)]
-    print(scores)
-    print(clust_group)
-    for i,k in enumerate(keys):
-        if clust_group:
-            merged['r'].extend(splits[k])
-        else:
-            merged['h'].extend(splits[k])
+    clust_score_diff = [scores[0,i] - scores[1,i] for i,d in enumerate(keys)]
+    sort_score_diff = np.sort(clust_score_diff)
+    clust_diff_group = np.in1d(clust_score_diff,sort_score_diff[0:prop_n_clusts])
+    top_real_idxs = np.nonzero(clust_diff_group)[0]
+    clust_score_diff = [scores[1,i] - scores[0,i] for i,d in enumerate(keys)]
+    sort_score_diff = np.sort(clust_score_diff)
+    clust_diff_group = np.in1d(clust_score_diff,sort_score_diff[0:(nclusts-prop_n_clusts)])
+    top_hyb_idxs = np.nonzero(clust_diff_group)[0]
 
-    # Return a dict of the new clusters
-    return merged
+    if not (np.all(clust_group) or np.all(np.logical_not(clust_group))):
+        for i,k in enumerate(keys):
+            if clust_group[i]:
+                merged['r'].extend(splits[k])
+            else:
+                merged['h'].extend(splits[k])
+        # Return a dict of the new clusters
+        return merged,clust_group
+    else:
+        for i,k in enumerate(keys):
+            top_hyb = i in top_hyb_idxs
+            top_real = i in top_real_idxs
+            if top_hyb and top_real:
+                print('huh?')
+            elif top_real:
+                merged['r'].extend(splits[k])
+            elif top_hyb:
+                merged['h'].extend(splits[k])
+        # Return a dict of the new clusters
+        return merged,clust_diff_group
