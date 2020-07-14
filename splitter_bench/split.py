@@ -6,12 +6,11 @@ from hyb_clu import hyb_clu
 import numpy as np
 import matplotlib.pyplot as plt
 
-def run_exp_split(exp_clust,s,m,c):
+def run_exp_split(exp_clust,s,m,c,nclusts):
     cid = exp_clust['id']
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
-    nclusts = 20
     if 0.1 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
         splits = cluster(mstdict,spikes,list(mstdict.keys())[2:6],nclusts)

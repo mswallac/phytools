@@ -4,12 +4,13 @@ import pandas as pd
 from hyb_clu import hyb_clu
 import split
 import time
+import os
 # First, data directories, ground truth (GT) clusters, artificially added clusters,
 # and clusters associated with the former two types.
 # Data directories
 raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01'
-hyb_data_dir = raw_data_dir+r'\test_hyb_bigunits'
-
+hyb_data_dir = os.getcwd()
+print(hyb_data_dir)
 # Artificial Clusters (from output of hybridfactory)
 art_units = pd.read_csv(hyb_data_dir+r'\artificial_units-test.csv')
 true_units = art_units['true_unit']
@@ -24,19 +25,19 @@ hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
 
 diffs = []
 idxs = []
-exp_dict = {'gt_clu':[],'hyb_clu':[],'clu_comp':[],'split_real_comp':[],'split_hyb_comp':[]}
+exp_dict = {'gt_clu':[],'hyb_clu':[],'clust_art_%':[],'split_real_%':[],'split_hyb_%':[]}
 run_ct = 0
-
+nclusts = 20
 if 'hyb_clu_list' in dir():
     for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c)
+                art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c,nclusts)
                 if real_res:
                     exp_dict['gt_clu'].append(clu)
                     exp_dict['hyb_clu'].append(x['id'])
-                    exp_dict['split_real_comp'].append(real_res)
-                    exp_dict['split_hyb_comp'].append(hyb_res)
-                    exp_dict['clu_comp'].append(art_pct)
+                    exp_dict['split_real_%'].append(real_res*100)
+                    exp_dict['split_hyb_%'].append(hyb_res*100)
+                    exp_dict['clust_art_%'].append(art_pct*100)
                     print('Successful split!')
 else:
     hyb_clu_list = []
@@ -52,15 +53,23 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c)
+            art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c,nclusts)
             if real_res:
                 exp_dict['gt_clu'].append(clu)
                 exp_dict['hyb_clu'].append(x['id'])
-                exp_dict['split_real_comp'].append(real_res)
-                exp_dict['split_hyb_comp'].append(hyb_res)
-                exp_dict['clu_comp'].append(art_pct)
+                exp_dict['split_real_%'].append(real_res)
+                exp_dict['split_hyb_%'].append(hyb_res)
+                exp_dict['clust_art_%'].append(art_pct)
                 print('Successful split!')
 
-timestr = time.strftime("%Y%m%d-%H%M%S"+'.csv')
+timestr = time.strftime("%Y%m%d-%H%M%S")+('_n%d.csv'%nclusts)
+timestr_pdf = time.strftime("%Y%m%d-%H%M%S")+('_n%d.pdf'%nclusts)
 exp_data = pd.DataFrame(data=exp_dict)
-exp_data.to_csv(timestr,index_label='experiment')
+axes=exp_data[['clust_art_%','split_hyb_%','split_real_%']].plot.bar(rot=0)
+fig = axes.figure
+axes.set_xlabel('trial #')
+axes.set_ylabel('cluster purity (%)')
+axes.set_title('Automated splitter performance, n_clusts = %d'%nclusts)
+fig.show()
+fig.savefig(timestr_pdf)
+exp_data.to_csv(timestr)
