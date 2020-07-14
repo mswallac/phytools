@@ -23,6 +23,8 @@ def run_exp_split(exp_clust,s,m,c):
         return None,None,None,None
 
 def check_res(merged,clust_group,real_spks,hyb_spks):
+    if np.all(clust_group) or np.all(np.logical_not(clust_group)):
+        return None,None
     real_in = np.in1d(real_spks,merged['r'])
     real_res = sum(real_in)/len(merged['r'])
     hyb_in = np.in1d(hyb_spks,merged['h'])
@@ -96,37 +98,12 @@ def merge_clusters(splits,gt1_spikes,gt2_spikes,nclusts):
     merged = {}
     merged.update({'r':[],'h':[]})
 
-    prop_n_clusts = (len(gt1_spikes)/(len(gt1_spikes)+len(gt2_spikes)))*nclusts
-    prop_n_clusts = int(prop_n_clusts)
-
     # Merge clusters w/ best agreement.
     clust_group = [scores[0,i] > scores[1,i] for i,d in enumerate(keys)]
-    clust_score_diff = [scores[0,i] - scores[1,i] for i,d in enumerate(keys)]
-    sort_score_diff = np.sort(clust_score_diff)
-    clust_diff_group = np.in1d(clust_score_diff,sort_score_diff[0:prop_n_clusts])
-    top_real_idxs = np.nonzero(clust_diff_group)[0]
-    clust_score_diff = [scores[1,i] - scores[0,i] for i,d in enumerate(keys)]
-    sort_score_diff = np.sort(clust_score_diff)
-    clust_diff_group = np.in1d(clust_score_diff,sort_score_diff[0:(nclusts-prop_n_clusts)])
-    top_hyb_idxs = np.nonzero(clust_diff_group)[0]
-
-    if not (np.all(clust_group) or np.all(np.logical_not(clust_group))):
-        for i,k in enumerate(keys):
-            if clust_group[i]:
-                merged['r'].extend(splits[k])
-            else:
-                merged['h'].extend(splits[k])
-        # Return a dict of the new clusters
-        return merged,clust_group
-    else:
-        for i,k in enumerate(keys):
-            top_hyb = i in top_hyb_idxs
-            top_real = i in top_real_idxs
-            if top_hyb and top_real:
-                print('huh?')
-            elif top_real:
-                merged['r'].extend(splits[k])
-            elif top_hyb:
-                merged['h'].extend(splits[k])
-        # Return a dict of the new clusters
-        return merged,clust_diff_group
+    for i,k in enumerate(keys):
+        if clust_group[i]:
+            merged['r'].extend(splits[k])
+        else:
+            merged['h'].extend(splits[k])
+    # Return a dict of the new clusters
+    return merged,clust_group

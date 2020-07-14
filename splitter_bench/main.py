@@ -22,36 +22,44 @@ raw_spike_times = np.load(raw_data_dir+r'\spike_times.npy')
 hyb_spike_clus = np.load(hyb_data_dir+r'\spike_clusters.npy')
 hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
 
-# Create data objects which describe one GT cluster.
-hyb_clu_list = []
-
-# For each GT cluster we will store: 
-    # raw clustering ID, raw spike idx (all), time
-    # Add hybrid spike idx (all? -- as many as possible) after using spike times
 diffs = []
 idxs = []
 exp_dict = {'gt_clu':[],'hyb_clu':[],'clu_comp':[],'split_real_comp':[],'split_hyb_comp':[]}
 run_ct = 0
-for i,clu in enumerate(gt_clus):
-    hfact_idx = np.where(true_units == clu)
-    true_hyb_spike_times = np.asarray(art_units['timestep'])[hfact_idx]
-    chans = np.unique(center_channels[hfact_idx])
-    assert len(chans)==1
-    hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
-    spike_idxs = np.where(raw_spike_clus == clu)[0]
-    spike_times = raw_spike_times[spike_idxs][:,0]
-    print('Artificial cluster (based on %d) is on channel(s): %s'%(clu,np.unique(center_channels[hfact_idx])))
-    hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
-    hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
-    for x in hyb_clu_list[i].exp_clusts:
-        art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c)
-        if art_pct:
-            exp_dict['gt_clu'].append(clu)
-            exp_dict['hyb_clu'].append(x['id'])
-            exp_dict['split_real_comp'].append(real_res)
-            exp_dict['split_hyb_comp'].append(hyb_res)
-            exp_dict['clu_comp'].append(art_pct)
-            print('Successful split!')
+
+if 'hyb_clu_list' in dir():
+    for i,clu in enumerate(gt_clus):
+            for x in hyb_clu_list[i].exp_clusts:
+                art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c)
+                if real_res:
+                    exp_dict['gt_clu'].append(clu)
+                    exp_dict['hyb_clu'].append(x['id'])
+                    exp_dict['split_real_comp'].append(real_res)
+                    exp_dict['split_hyb_comp'].append(hyb_res)
+                    exp_dict['clu_comp'].append(art_pct)
+                    print('Successful split!')
+else:
+    hyb_clu_list = []
+    for i,clu in enumerate(gt_clus):
+        hfact_idx = np.where(true_units == clu)
+        true_hyb_spike_times = np.asarray(art_units['timestep'])[hfact_idx]
+        chans = np.unique(center_channels[hfact_idx])
+        assert len(chans)==1
+        hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
+        spike_idxs = np.where(raw_spike_clus == clu)[0]
+        spike_times = raw_spike_times[spike_idxs][:,0]
+        print('Artificial cluster (based on %d) is on channel(s): %s'%(clu,np.unique(center_channels[hfact_idx])))
+        hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
+        hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
+        for x in hyb_clu_list[i].exp_clusts:
+            art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c)
+            if real_res:
+                exp_dict['gt_clu'].append(clu)
+                exp_dict['hyb_clu'].append(x['id'])
+                exp_dict['split_real_comp'].append(real_res)
+                exp_dict['split_hyb_comp'].append(hyb_res)
+                exp_dict['clu_comp'].append(art_pct)
+                print('Successful split!')
 
 timestr = time.strftime("%Y%m%d-%H%M%S"+'.csv')
 exp_data = pd.DataFrame(data=exp_dict)
