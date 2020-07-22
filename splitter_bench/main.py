@@ -1,16 +1,21 @@
-import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
-import pandas as pd
 from hyb_clu import hyb_clu
+import numpy as np
+import pandas as pd
 import split
 import time
 import os
+import importlib
+
+# For development pipeline convenience
+importlib.reload(split)
+
 # First, data directories, ground truth (GT) clusters, artificially added clusters,
 # and clusters associated with the former two types.
 # Data directories
 raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01'
 hyb_data_dir = os.getcwd()
-print(hyb_data_dir)
 # Artificial Clusters (from output of hybridfactory)
 art_units = pd.read_csv(hyb_data_dir+r'\artificial_units-test.csv')
 true_units = art_units['true_unit']
@@ -25,20 +30,24 @@ hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
 
 diffs = []
 idxs = []
-exp_dict = {'gt_clu':[],'hyb_clu':[],'clust_art_%':[],'split_real_%':[],'split_hyb_%':[]}
+exp_dict = {'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[]}
 run_ct = 0
-nclusts = 20
+nclusts = 15
 if 'hyb_clu_list' in dir():
-    for i,clu in enumerate(gt_clus):
+    if len(hyb_clu_list)==len(gt_clus):
+        for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c,nclusts)
-                if real_res:
+                art_pct,clust_precs,f1s_merged,merged_clusts = split.run_exp_split(x,s,m,c,nclusts)
+                if not (clust_precs is None):
                     exp_dict['gt_clu'].append(clu)
                     exp_dict['hyb_clu'].append(x['id'])
-                    exp_dict['split_real_%'].append(real_res*100)
-                    exp_dict['split_hyb_%'].append(hyb_res*100)
-                    exp_dict['clust_art_%'].append(art_pct*100)
+                    exp_dict['clu_precision'].append(clust_precs)
+                    exp_dict['f1_scores'].append(f1s_merged)
+                    exp_dict['merged'].append(merged_clusts)
+                    exp_dict['art%'].append(art_pct)
                     print('Successful split!')
+    else:
+        print('Old data does not match current # of clusters!')
 else:
     hyb_clu_list = []
     for i,clu in enumerate(gt_clus):
@@ -53,23 +62,31 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            art_pct,real_res,hyb_res,merged = split.run_exp_split(x,s,m,c,nclusts)
-            if real_res:
+            art_pct,clust_precs,f1s_merged,merged_clusts = split.run_exp_split(x,s,m,c,nclusts)
+            if not (clust_precs is None):
                 exp_dict['gt_clu'].append(clu)
                 exp_dict['hyb_clu'].append(x['id'])
-                exp_dict['split_real_%'].append(real_res)
-                exp_dict['split_hyb_%'].append(hyb_res)
-                exp_dict['clust_art_%'].append(art_pct)
+                exp_dict['clu_precision'].append(clust_precs)
+                exp_dict['f1_scores'].append(f1s_merged)
+                exp_dict['merged'].append(merged_clusts)
+                exp_dict['art%'].append(art_pct)
                 print('Successful split!')
 
-timestr = time.strftime("%Y%m%d-%H%M%S")+('_n%d.csv'%nclusts)
 timestr_pdf = time.strftime("%Y%m%d-%H%M%S")+('_n%d.pdf'%nclusts)
-exp_data = pd.DataFrame(data=exp_dict)
-axes=exp_data[['clust_art_%','split_hyb_%','split_real_%']].plot.bar(rot=0)
-fig = axes.figure
-axes.set_xlabel('trial #')
-axes.set_ylabel('cluster purity (%)')
-axes.set_title('Automated splitter performance, n_clusts = %d'%nclusts)
-fig.show()
-fig.savefig(timestr_pdf)
-exp_data.to_csv(timestr)
+pp = PdfPages(timestr_pdf)
+
+for i,clu in enumerate(exp_dict['gt_clu']):
+    fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=False,sharex=True)
+    axes[0].bar(np.arange(1,nclusts+1),(np.flip(np.sort(exp_dict['clu_precision'][i]))*100))
+    axes[0].set_xlabel('Sub-cluster (idx)')
+    axes[0].set_ylabel('Precision (%)')
+    axes[0].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    f1_merged_scores = np.array(exp_dict['f1_scores'][i])
+    axes[1].plot(np.arange(1,nclusts+1),(f1_merged_scores*100))
+    axes[1].set_xlabel('Sub-clusters combined (count)')
+    axes[1].set_ylabel('F1 Score (%) of combined clust.')
+    axes[1].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    fig.tight_layout()
+    pp.savefig(plt.gcf())
+
+pp.close()

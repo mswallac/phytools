@@ -13,24 +13,12 @@ def run_exp_split(exp_clust,s,m,c,nclusts):
     art_pct = exp_clust['art_pct']
     if 0.1 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
-        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:6],nclusts)
-        merged,clust_group = merge_clusters(splits,real_spks,hyb_spks,nclusts)
-        real_res,hyb_res = check_res(merged,clust_group,real_spks,hyb_spks)
+        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:8],nclusts)
+        clust_precisions,f1s_merged,merged_clusts = merge_clusters(splits,real_spks,hyb_spks,nclusts)
         #s.actions.split(merged['r'])
-        return art_pct,real_res,hyb_res,merged
+        return art_pct,clust_precisions,f1s_merged,merged_clusts
     else:
         return None,None,None,None
-
-def check_res(merged,clust_group,real_spks,hyb_spks):
-    if np.all(clust_group) or np.all(np.logical_not(clust_group)):
-        return None,None
-    real_in = np.in1d(real_spks,merged['r'])
-    real_res = sum(real_in)/len(merged['r'])
-    hyb_in = np.in1d(hyb_spks,merged['h'])
-    hyb_res = sum(hyb_in)/len(merged['h'])
-    return real_res,hyb_res
-
-    
 
 def get_spikes(cid,m,c):
     spikes = m.get_cluster_spikes(cid)
@@ -80,29 +68,45 @@ def cluster(mstdict,spikes,feat_keys,nclusts):
         splits.update({(i): spikes[inter1]})
     return splits
 
-def merge_clusters(splits,gt1_spikes,gt2_spikes,nclusts):
+def merge_clusters(splits,real_spikes,hyb_spikes,nclusts):
     # Figure out what % each cluster is composed of each given cluster
     keys = list(splits.keys())
-    both_spikes = []
-    both_spikes.append(gt1_spikes)
-    both_spikes.append(gt2_spikes)
-    scores = np.zeros((2,len(keys)))
-    for i in range(scores.shape[0]):
-        clu_spikes = both_spikes[i]
-        for j,d in enumerate(keys):
-            split_spikes = splits[d]
-            n_match = sum(np.in1d(clu_spikes,split_spikes))
-            scores[i,j] = n_match/len(split_spikes)
-    
-    merged = {}
-    merged.update({'r':[],'h':[]})
+    clust_precisions = []
 
-    # Merge clusters w/ best agreement.
-    clust_group = [scores[0,i] > scores[1,i] for i,d in enumerate(keys)]
-    for i,k in enumerate(keys):
-        if clust_group[i]:
-            merged['r'].extend(splits[k])
-        else:
-            merged['h'].extend(splits[k])
-    # Return a dict of the new clusters
-    return merged,clust_group
+    #split_spikes = splits[d]
+    #TP = sum(np.in1d(hyb_spikes,split_spikes))
+    #FP = sum(np.in1d(real_spikes,split_spikes))
+    #assert (TP+FP) == len(split_spikes)
+    #FN = len(hyb_spikes)-TP
+    #F1 = TP/(TP+0.5*(FP+FN))
+
+    # Using precision as metric to decide merge order
+    for i,d in enumerate(keys):
+        split_spikes = splits[d]
+        TP = sum(np.in1d(hyb_spikes,split_spikes))
+        FP = sum(np.in1d(real_spikes,split_spikes))
+        assert (TP+FP) == len(split_spikes)
+        FN = len(hyb_spikes)-TP
+        clust_precisions.append(TP/(TP+FP))
+
+    clust_precisions=np.array(clust_precisions)
+    sort_map = np.flip(np.argsort(clust_precisions))
+    precs_sorted = clust_precisions[sort_map]
+    f1s_merged = []
+    merge_spikes = []
+    merged_clusts = []
+
+    # Merge clusters in order of precision and recompute F1 after each merge
+    for i,d in enumerate(precs_sorted):
+        merge_spikes.extend(splits[keys[sort_map[i]]])
+        TP = sum(np.in1d(hyb_spikes,merge_spikes))
+        FP = sum(np.in1d(real_spikes,merge_spikes))
+        assert (TP+FP) == len(merge_spikes)
+        FN = len(hyb_spikes)-TP
+        F1 = TP/(TP+0.5*(FP+FN))
+        f1s_merged.append(F1)
+        merged_clusts.append(sort_map[0:i])
+
+    # Some code to find optimum F1 and return dict with the appropriate split
+
+    return clust_precisions,f1s_merged,merged_clusts
