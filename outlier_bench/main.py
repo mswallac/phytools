@@ -34,11 +34,11 @@ exp_dict = {}
 run_ct = 0
 
 if 'hyb_clu_list' in dir():
-    if len(hyb_clu_list)==len(gt_clus):
+    #if len(hyb_clu_list)==len(gt_clus):
+    if True:
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                # Cluster criteria to be considered should be updated
-                # Then we can loop throug hall these clusters like we do with splitter
+                outlier.run_exp_outlier(x,s,m,c)
     else:
         print('Old data does not match current # of clusters!')
 else:
@@ -55,8 +55,7 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            # Cluster criteria to be considered should be updated
-            # Then we can loop through all these clusters like we do with splitter
+            outlier.run_exp_outlier(x,s,m,c)
 
 #timestr_pdf = time.strftime("%Y%m%d-%H%M%S")+('_n%d.pdf'%nclusts)
 #pp = PdfPages(timestr_pdf)
