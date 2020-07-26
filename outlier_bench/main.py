@@ -33,17 +33,28 @@ idxs = []
 exp_dict = {}
 run_ct = 0
 
+exp_dict.update({'prec_onstep':[]})
+exp_dict.update({'cum_nouts':[]})
+exp_dict.update({'hyb_clu':[]})
+exp_dict.update({'art%':[]})
+
 if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
     if True:
-        for i,clu in enumerate(gt_clus):
+        for i,clu in enumerate(gt_clus[0:1]):
             for x in hyb_clu_list[i].exp_clusts:
-                outlier.run_exp_outlier(x,s,m,c)
+                final_prec,prec_onstep,cum_n_outs_onstep = outlier.run_exp_outlier(x,s,m,c)
+                if final_prec:
+                    print('Final precision for clu. %d : %.3f'%(x['id'],final_prec))
+                    exp_dict['prec_onstep'].append(prec_onstep)
+                    exp_dict['cum_nouts'].append(prec_onstep)
+                    exp_dict['art%'].append(x['art_pct'])
+                    exp_dict['hyb_clu'].append(x['id'])
     else:
         print('Old data does not match current # of clusters!')
 else:
     hyb_clu_list = []
-    for i,clu in enumerate(gt_clus):
+    for i,clu in enumerate(gt_clus[0:1]):
         hfact_idx = np.where(true_units == clu)
         true_hyb_spike_times = np.asarray(art_units['timestep'])[hfact_idx]
         chans = np.unique(center_channels[hfact_idx])
@@ -55,21 +66,23 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            outlier.run_exp_outlier(x,s,m,c)
+                final_prec,prec_onstep,cum_n_outs_onstep = outlier.run_exp_outlier(x,s,m,c)
+                if final_prec:
+                    print('Final precision for clu. %d : %.3f'%(x['id'],final_prec))
+                    exp_dict['prec_onstep'].append(prec_onstep)
+                    exp_dict['cum_nouts'].append(prec_onstep)
+                    exp_dict['art%'].append(x['art_pct'])
+                    exp_dict['hyb_clu'].append(x['id'])
 
-#timestr_pdf = time.strftime("%Y%m%d-%H%M%S")+('_n%d.pdf'%nclusts)
-#pp = PdfPages(timestr_pdf)
+timestr_pdf = time.strftime("outlier_%Y%m%d-%H%M%S.pdf")
+pp = PdfPages(timestr_pdf)
 
-#for i,clu in enumerate(exp_dict['gt_clu']):
-#    fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=True,sharex=True)
-#    axes[0].bar(np.arange(1,nclusts+1),(np.flip(np.sort(exp_dict['clu_precision'][i]))*100))
-#    axes[0].set_xlabel('Sub-cluster (idx)')
-#    axes[0].set_ylabel('Precision (%)')
-#    axes[0].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
-#    f1_merged_scores = np.array(exp_dict['f1_scores'][i])
-#    axes[1].plot(np.arange(1,nclusts+1),(f1_merged_scores*100))
-#    axes[1].set_xlabel('Sub-clusters combined (count)')
-#    axes[1].set_ylabel('F1 Score (%) of combined clust.')
-#    axes[1].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
-#    pp.savefig(plt.gcf())
-#pp.close()
+for i,clu in enumerate(exp_dict['hyb_clu']):
+    fig,axes=plt.subplots(nrows=1,ncols=1,figsize=(8,4),sharey=True,sharex=True)
+    axes.plot(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
+    print(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
+    axes.set_xlabel('N spikes removed (count)')
+    axes.set_ylabel('Precision (%)')
+    axes.set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    pp.savefig(plt.gcf())
+pp.close()

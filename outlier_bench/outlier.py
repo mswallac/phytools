@@ -19,10 +19,11 @@ def run_exp_outlier(exp_clust,s,m,c):
     art_pct = exp_clust['art_pct']
     if art_pct < 0.15:
         cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
+        print(sum(np.in1d(real_spks,spikes))+sum(np.in1d(hyb_spks,spikes)),len(spikes))
         outs = []
         # TODO : some ratio for how many spikes to remove: maybe:
         #            - the contaminating # of spikes
-        #            - some % of total # of spikes
+        #            - some % of total # of spikes (doing this for now)
         #            - according to ISI violation 
         #                (should this maybe be the criteria for using the outlier rejection plugin?)
         #
@@ -31,24 +32,36 @@ def run_exp_outlier(exp_clust,s,m,c):
         outs_each_iter = []
         spikes_live = np.array(spikes)
         feats_keys = list(mstdict.keys())[2:8]
-        while len(outs) < n_to_rem:
-            find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict)
+        while len(outs) < n_to_rem and iters<100:
+            spikes_live=find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict)
             print(len(spikes_live),len(outs), iters)
             outs_each_iter.append(outs)
             iters+=1
 
-        bench_outlier(outs,outs_each_iter,real_spks,hyb_spks)
+        final_prec,prec_onstep,cum_n_outs_onstep = bench_outlier(outs,outs_each_iter,real_spks,hyb_spks)
 
-        return None,None,None,None
+        return final_prec,prec_onstep,cum_n_outs_onstep
     else:
-        return None,None,None,None
+        return None,None,None
 
 def bench_outlier(outs,outs_each_iter,real_spks,hyb_spks):
-    # Calculate final performance
-    TP = sum(np.in1d(hyb_spikes,outs))
-    FP = sum(np.in1d(real_spikes,outs))
+    # Calculate performance metrics
+    TP = sum(np.in1d(hyb_spks,outs))
+    FP = sum(np.in1d(real_spks,outs))
+    print(TP,FP,TP+FP,len(outs))
     assert (TP+FP) == len(outs)
     final_prec = (TP/(TP+FP))
+    prec_onstep = []
+    n_outs_onstep = [len(x) for x in outs_each_iter]
+    cum_n_outs_onstep = np.cumsum(n_outs_onstep)
+    for out_onstep in outs_each_iter:
+        TP = sum(np.in1d(hyb_spks,out_onstep))
+        FP = sum(np.in1d(real_spks,out_onstep))
+        assert (TP+FP) == len(out_onstep)
+        prec = (TP/(TP+FP))
+        prec_onstep.append(prec)
+
+    return final_prec,prec_onstep,cum_n_outs_onstep
 
 def get_spikes(cid,m,c):
     splits = {}
@@ -94,10 +107,9 @@ def get_spikes(cid,m,c):
 
 
 def find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict):
-    # We should iterate through the keys of splits so that for each time segment we have some
-    # spikes we can retrieve by indexing
     keys = list(splits.keys())
-    n_excl_per_iter = int(len(splits[keys[0]])*0.005)
+    n_excl_per_iter = int(len(splits[keys[0]])*0.05)
+    n_excl_per_iter = 100 if n_excl_per_iter==0 else n_excl_per_iter
     print(n_excl_per_iter)
     for i,d in enumerate(keys):
         which = []
@@ -124,9 +136,7 @@ def find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict):
                         to_add = [x for x in keys[0:(end-beg)] if x != d]
                     for i,x in enumerate(to_add):
                         which.extend(splits[x])
-            print(len(which))
             which = np.unique(which)
-            print(len(which))
             which_inds = np.nonzero(np.in1d(spikes,which))[0]
             for i,d in enumerate(feats_keys):
                 temp = np.array(mstdict[d][which_inds])
@@ -144,7 +154,9 @@ def find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict):
                 pt = train[i,:]
                 dist.append(mahalanobis(pt,mpt,cmati))
             dist=np.abs(np.array(dist))
-            # TODO : Take top N from dist arr. these will be outliers excluded per-run
             outinds = np.flip(np.argsort(dist))[0:n_excl_per_iter]
+            outinds = which_inds[outinds]
+            outinds = spikes[outinds]
             spikes_live = np.delete(spikes_live,np.in1d(spikes_live,outinds))
             outs.extend(outinds)
+    return spikes_live
