@@ -5,11 +5,13 @@ from hyb_clu import hyb_clu
 import numpy as np
 from scipy.spatial.distance import mahalanobis
 from scipy.stats import zscore
+import pandas as pd
+
 
 nchans = 6
-nchunks = 50
-min_nspikes = 1000
-max_ntimeseg = 15
+nchunks = 25
+min_nspikes = 300
+max_ntimeseg = 5
 wavewin = slice(0,82)
 
 def run_exp_outlier(exp_clust,s,m,c):
@@ -19,7 +21,6 @@ def run_exp_outlier(exp_clust,s,m,c):
     art_pct = exp_clust['art_pct']
     if art_pct < 0.15:
         cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
-        print(sum(np.in1d(real_spks,spikes))+sum(np.in1d(hyb_spks,spikes)),len(spikes))
         outs = []
         # TODO : some ratio for how many spikes to remove: maybe:
         #            - the contaminating # of spikes
@@ -27,41 +28,59 @@ def run_exp_outlier(exp_clust,s,m,c):
         #            - according to ISI violation 
         #                (should this maybe be the criteria for using the outlier rejection plugin?)
         #
-        n_to_rem = int(nspikes*.15)
+        n_to_rem = int(nspikes*.10)
         iters = 0
         outs_each_iter = []
-        spikes_live = np.array(spikes)
         feats_keys = list(mstdict.keys())[2:8]
-        while len(outs) < n_to_rem and iters<100:
-            spikes_live=find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict)
-            print(len(spikes_live),len(outs), iters)
-            outs_each_iter.append(outs)
+        while len(outs) < n_to_rem and iters<1000:
+            splits=find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict)
             iters+=1
+        print(iters)
+        fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep = bench_outlier(outs,outs_each_iter,real_spks,hyb_spks,spikes)
 
-        final_prec,prec_onstep,cum_n_outs_onstep = bench_outlier(outs,outs_each_iter,real_spks,hyb_spks)
-
-        return final_prec,prec_onstep,cum_n_outs_onstep
+        return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters
     else:
-        return None,None,None
+        return None,None,None,None,None
 
-def bench_outlier(outs,outs_each_iter,real_spks,hyb_spks):
+def bench_outlier(outs,outs_each_iter,real_spks,hyb_spks,spikes):
     # Calculate performance metrics
-    TP = sum(np.in1d(hyb_spks,outs))
-    FP = sum(np.in1d(real_spks,outs))
-    print(TP,FP,TP+FP,len(outs))
+    TP = sum(np.in1d(outs,hyb_spks))
+    FP = sum(np.in1d(outs,real_spks))
     assert (TP+FP) == len(outs)
-    final_prec = (TP/(TP+FP))
+    fin_removed_prec = (TP/(TP+FP))
+    fin_spks = np.delete(spikes,np.in1d(spikes,outs))
+    # Calculate performance metrics
+    TP = sum(np.in1d(hyb_spks,fin_spks))
+    FP = sum(np.in1d(real_spks,fin_spks))
+    fin_prec = (TP/(TP+FP))
+    assert (TP+FP) == len(fin_spks)
     prec_onstep = []
+    prec_rem_onstep = []
     n_outs_onstep = [len(x) for x in outs_each_iter]
     cum_n_outs_onstep = np.cumsum(n_outs_onstep)
-    for out_onstep in outs_each_iter:
-        TP = sum(np.in1d(hyb_spks,out_onstep))
-        FP = sum(np.in1d(real_spks,out_onstep))
-        assert (TP+FP) == len(out_onstep)
+    cum_outs = []
+    for i,out_onstep in enumerate(outs_each_iter):
+        cum_outs.extend(out_onstep)
+        # Calculate performance metrics
+        TP = sum(np.in1d(cum_outs,hyb_spks))
+        FP = sum(np.in1d(cum_outs,real_spks))
+        assert (TP+FP) == len(cum_outs)
+
+        # Calculate what the precision was in removing spikes which are artifical
+        removed_prec = (TP/(TP+FP))
+        prec_rem_onstep.append(removed_prec)
+
+        # Updated list of remaining spikes for other perf. metric
+        remaining_spks = np.delete(spikes,np.nonzero(np.in1d(spikes,cum_outs))[0])
+        
+        # Calculate performance metrics
+        TP = sum(np.in1d(hyb_spks,remaining_spks))
+        FP = sum(np.in1d(real_spks,remaining_spks))
         prec = (TP/(TP+FP))
+        assert (TP+FP) == len(remaining_spks)
         prec_onstep.append(prec)
 
-    return final_prec,prec_onstep,cum_n_outs_onstep
+    return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep
 
 def get_spikes(cid,m,c):
     splits = {}
@@ -106,11 +125,9 @@ def get_spikes(cid,m,c):
     return (cid,spikes,nspikes,chan,mstdict,splits)
 
 
-def find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict):
+def find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict):
     keys = list(splits.keys())
-    n_excl_per_iter = int(len(splits[keys[0]])*0.05)
-    n_excl_per_iter = 100 if n_excl_per_iter==0 else n_excl_per_iter
-    print(n_excl_per_iter)
+    n_excl_per_iter = 5
     for i,d in enumerate(keys):
         which = []
         train = []
@@ -136,8 +153,22 @@ def find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict):
                         to_add = [x for x in keys[0:(end-beg)] if x != d]
                     for i,x in enumerate(to_add):
                         which.extend(splits[x])
-            which = np.unique(which)
-            which_inds = np.nonzero(np.in1d(spikes,which))[0]
+            
+            try:
+                assert np.array_equal(which,pd.unique(which))
+            except:
+                which = pd.unique(which)
+
+            # Checking spike / index mapping
+            which_inds = (np.in1d(spikes,which))
+            assert sum(which_inds)==len(which)
+            assert np.array_equal(spikes[which_inds],which)
+            
+            # Checking spike / index mapping pt. 2
+            which_inds = np.nonzero(which_inds)[0]
+            assert np.array_equal(spikes[which_inds],which)
+
+            # Create data train for use in outlier rejection algorithm
             for i,d in enumerate(feats_keys):
                 temp = np.array(mstdict[d][which_inds])
                 temp = np.reshape(temp,len(which_inds))
@@ -155,8 +186,12 @@ def find_out(splits,outs,spikes,spikes_live,feats_keys,mstdict):
                 dist.append(mahalanobis(pt,mpt,cmati))
             dist=np.abs(np.array(dist))
             outinds = np.flip(np.argsort(dist))[0:n_excl_per_iter]
-            outinds = which_inds[outinds]
-            outinds = spikes[outinds]
-            spikes_live = np.delete(spikes_live,np.in1d(spikes_live,outinds))
+            outinds = spikes[which_inds[outinds]]
             outs.extend(outinds)
-    return spikes_live
+            outs_each_iter.append(outinds)
+            for j,x in enumerate(keys):
+                a = (splits[x])
+                spike_rem = np.nonzero(np.in1d(a,outinds))
+                b = np.delete(a,spike_rem)
+                splits.update({x: (b)})
+            return splits

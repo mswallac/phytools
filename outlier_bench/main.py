@@ -34,27 +34,30 @@ exp_dict = {}
 run_ct = 0
 
 exp_dict.update({'prec_onstep':[]})
+exp_dict.update({'prec_rem_onstep':[]})
 exp_dict.update({'cum_nouts':[]})
 exp_dict.update({'hyb_clu':[]})
 exp_dict.update({'art%':[]})
+exp_dict.update({'iters':[]})
 
 if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
     if True:
-        for i,clu in enumerate(gt_clus[0:1]):
+        for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                final_prec,prec_onstep,cum_n_outs_onstep = outlier.run_exp_outlier(x,s,m,c)
-                if final_prec:
-                    print('Final precision for clu. %d : %.3f'%(x['id'],final_prec))
+                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters = outlier.run_exp_outlier(x,s,m,c)
+                if fin_prec:
                     exp_dict['prec_onstep'].append(prec_onstep)
-                    exp_dict['cum_nouts'].append(prec_onstep)
+                    exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
+                    exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
+                    exp_dict['iters'].append(iters)
     else:
         print('Old data does not match current # of clusters!')
 else:
     hyb_clu_list = []
-    for i,clu in enumerate(gt_clus[0:1]):
+    for i,clu in enumerate(gt_clus):
         hfact_idx = np.where(true_units == clu)
         true_hyb_spike_times = np.asarray(art_units['timestep'])[hfact_idx]
         chans = np.unique(center_channels[hfact_idx])
@@ -66,23 +69,32 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-                final_prec,prec_onstep,cum_n_outs_onstep = outlier.run_exp_outlier(x,s,m,c)
-                if final_prec:
-                    print('Final precision for clu. %d : %.3f'%(x['id'],final_prec))
+                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters = outlier.run_exp_outlier(x,s,m,c)
+                if fin_prec:
                     exp_dict['prec_onstep'].append(prec_onstep)
-                    exp_dict['cum_nouts'].append(prec_onstep)
+                    exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
+                    exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
+                    exp_dict['iters'].append(iters)
 
 timestr_pdf = time.strftime("outlier_%Y%m%d-%H%M%S.pdf")
 pp = PdfPages(timestr_pdf)
 
 for i,clu in enumerate(exp_dict['hyb_clu']):
-    fig,axes=plt.subplots(nrows=1,ncols=1,figsize=(8,4),sharey=True,sharex=True)
-    axes.plot(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
-    print(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
-    axes.set_xlabel('N spikes removed (count)')
-    axes.set_ylabel('Precision (%)')
-    axes.set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
-    pp.savefig(plt.gcf())
+    if exp_dict['iters'][i]!=None:
+        fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=False,sharex=True)
+        axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
+        axes[0].set_xlabel('N spikes removed (count)')
+        axes[0].set_ylabel('Precision of remaining spikes(%)')
+        axes[0].axhline(y=exp_dict['art%'][i],c='k',ls='--')
+        axes[0].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+        axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['prec_rem_onstep'][i])
+        axes[1].set_xlabel('N spikes removed (count)')
+        axes[1].set_ylabel('Precision of removed spikes (%)')
+        axes[1].axhline(y=exp_dict['art%'][i],c='k',ls='--')
+        axes[1].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+        fig.tight_layout()
+        plt.draw()
+        pp.savefig(plt.gcf())
 pp.close()
