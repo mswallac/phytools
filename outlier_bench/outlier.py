@@ -154,11 +154,8 @@ def find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict):
                     for i,x in enumerate(to_add):
                         which.extend(splits[x])
             
-            try:
-                assert np.array_equal(which,pd.unique(which))
-            except:
-                which = pd.unique(which)
-
+            unique_which,unsortinds = np.unique(which,return_index=True)
+            which = unique_which[np.argsort(unsortinds)] 
             # Checking spike / index mapping
             which_inds = (np.in1d(spikes,which))
             assert sum(which_inds)==len(which)
