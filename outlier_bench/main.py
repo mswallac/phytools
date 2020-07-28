@@ -7,6 +7,7 @@ import outlier
 import time
 import os
 import importlib
+from matplotlib import cm
 
 # For development pipeline convenience
 importlib.reload(outlier)
@@ -39,13 +40,14 @@ exp_dict.update({'cum_nouts':[]})
 exp_dict.update({'hyb_clu':[]})
 exp_dict.update({'art%':[]})
 exp_dict.update({'iters':[]})
+exp_dict.update({'isi':[]})
 
 if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
     if True:
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters = outlier.run_exp_outlier(x,s,m,c)
+                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi = outlier.run_exp_outlier(x,s,m,c)
                 if fin_prec:
                     exp_dict['prec_onstep'].append(prec_onstep)
                     exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
@@ -53,6 +55,7 @@ if 'hyb_clu_list' in dir():
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
                     exp_dict['iters'].append(iters)
+                    exp_dict['isi'].append(isi)
     else:
         print('Old data does not match current # of clusters!')
 else:
@@ -69,7 +72,7 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters = outlier.run_exp_outlier(x,s,m,c)
+                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi = outlier.run_exp_outlier(x,s,m,c)
                 if fin_prec:
                     exp_dict['prec_onstep'].append(prec_onstep)
                     exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
@@ -77,13 +80,14 @@ else:
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
                     exp_dict['iters'].append(iters)
+                    exp_dict['isi'].append(isi)
 
 timestr_pdf = time.strftime("outlier_%Y%m%d-%H%M%S.pdf")
 pp = PdfPages(timestr_pdf)
 
 for i,clu in enumerate(exp_dict['hyb_clu']):
     if exp_dict['iters'][i]!=None:
-        fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=False,sharex=True)
+        fig,axes=plt.subplots(nrows=1,ncols=3,figsize=(8,4),sharey=False,sharex=False)
         axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
         axes[0].set_xlabel('N spikes removed (count)')
         axes[0].set_ylabel('Precision of remaining spikes(%)')
@@ -94,6 +98,12 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
         axes[1].set_ylabel('Precision of removed spikes (%)')
         axes[1].axhline(y=exp_dict['art%'][i],c='k',ls='--')
         axes[1].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+        axes[2].hist(exp_dict['isi'][i][0],color='r',bins=np.linspace(0.0,.050,102),label='Before',alpha=.5)
+        axes[2].hist(exp_dict['isi'][i][0],color='b',bins=np.linspace(0.0,.050,102),label='After',alpha=.5)
+        axes[2].legend()
+        axes[2].set_xlabel('Inter-spike Interval (sec.)')
+        axes[2].set_ylabel('Count')
+        axes[2].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
         fig.tight_layout()
         plt.draw()
         pp.savefig(plt.gcf())

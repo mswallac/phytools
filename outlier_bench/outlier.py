@@ -9,9 +9,9 @@ import pandas as pd
 
 
 nchans = 6
-nchunks = 25
-min_nspikes = 300
-max_ntimeseg = 5
+nchunks = 50
+min_nspikes = 600
+max_ntimeseg = 10
 wavewin = slice(0,82)
 
 def run_exp_outlier(exp_clust,s,m,c):
@@ -19,7 +19,7 @@ def run_exp_outlier(exp_clust,s,m,c):
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
-    if art_pct < 0.15:
+    if 0.05 < art_pct < 0.35:
         cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
         outs = []
         # TODO : some ratio for how many spikes to remove: maybe:
@@ -28,27 +28,35 @@ def run_exp_outlier(exp_clust,s,m,c):
         #            - according to ISI violation 
         #                (should this maybe be the criteria for using the outlier rejection plugin?)
         #
-        n_to_rem = int(nspikes*.10)
+        n_to_rem = int(nspikes*art_pct*2)
         iters = 0
         outs_each_iter = []
-        feats_keys = list(mstdict.keys())[2:8]
+        feats_keys = list(mstdict.keys())[2:10]
         while len(outs) < n_to_rem and iters<1000:
             splits=find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict)
             iters+=1
         print(iters)
-        fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep = bench_outlier(outs,outs_each_iter,real_spks,hyb_spks,spikes)
+        fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,isi = bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes)
 
-        return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters
+        return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi
     else:
-        return None,None,None,None,None
+        return None,None,None,None,None,None
 
-def bench_outlier(outs,outs_each_iter,real_spks,hyb_spks,spikes):
+def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
     # Calculate performance metrics
     TP = sum(np.in1d(outs,hyb_spks))
     FP = sum(np.in1d(outs,real_spks))
     assert (TP+FP) == len(outs)
     fin_removed_prec = (TP/(TP+FP))
     fin_spks = np.delete(spikes,np.in1d(spikes,outs))
+
+
+    isi_ba = []
+    isi = np.diff(mstdict['Time'][:])
+    isi_ba.append(isi)
+    isi = np.diff(mstdict['Time'][np.in1d(spikes,fin_spks)])
+    isi_ba.append(isi)
+
     # Calculate performance metrics
     TP = sum(np.in1d(hyb_spks,fin_spks))
     FP = sum(np.in1d(real_spks,fin_spks))
@@ -73,6 +81,9 @@ def bench_outlier(outs,outs_each_iter,real_spks,hyb_spks,spikes):
         # Updated list of remaining spikes for other perf. metric
         remaining_spks = np.delete(spikes,np.nonzero(np.in1d(spikes,cum_outs))[0])
         
+        #isi = np.diff(mstdict['Time'][np.in1d(spikes,remaining_spks)])/1000
+        #isi_onstep.append(isi)
+
         # Calculate performance metrics
         TP = sum(np.in1d(hyb_spks,remaining_spks))
         FP = sum(np.in1d(real_spks,remaining_spks))
@@ -80,7 +91,7 @@ def bench_outlier(outs,outs_each_iter,real_spks,hyb_spks,spikes):
         assert (TP+FP) == len(remaining_spks)
         prec_onstep.append(prec)
 
-    return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep
+    return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,isi_ba
 
 def get_spikes(cid,m,c):
     splits = {}
@@ -96,7 +107,7 @@ def get_spikes(cid,m,c):
         channel = c.selection.channel_id
     except AttributeError:
         channel = c.get_best_channels(cid[0])[0]
-
+    
     av=(c._get_amplitude_functions())['raw']
     data=av(spikes, channel_id=channel, channel_ids=np.array(channel), load_all=True, first_cluster=cid[0])
 
