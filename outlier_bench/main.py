@@ -42,6 +42,8 @@ exp_dict.update({'art%':[]})
 exp_dict.update({'iters':[]})
 exp_dict.update({'isi':[]})
 
+gt_clus = gt_clus
+
 if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
     if True:
@@ -82,9 +84,13 @@ else:
                     exp_dict['iters'].append(iters)
                     exp_dict['isi'].append(isi)
 
-timestr_pdf = time.strftime("outlier_%Y%m%d-%H%M%S.pdf")
-pp = PdfPages(timestr_pdf)
+timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
+timestr_pdf = timestr+".pdf"
+timestr_dict_npy = timestr+"_res.npy"
 
+np.save(timestr_dict_npy,exp_dict)
+
+pp = PdfPages(timestr_pdf)
 for i,clu in enumerate(exp_dict['hyb_clu']):
     if exp_dict['iters'][i]!=None:
         fig,axes=plt.subplots(nrows=1,ncols=3,figsize=(8,4),sharey=False,sharex=False)
