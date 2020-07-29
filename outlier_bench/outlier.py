@@ -17,7 +17,7 @@ def get_nchunks():
     nchunks = 50
     return nchunks
 
-def init(cid,m,c):
+def load_clust_data(cid,m,c):
     cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
     n_to_rem = int(nspikes*.2)
     feats_keys = list(mstdict.keys())[2:10]
@@ -32,25 +32,9 @@ def run_exp_outlier(exp_clust,s,m,c):
     outs_each_iter = []
     outs = []
     iters = 0
-    if (0.02 < art_pct < 0.15):
+    if (0.02 < art_pct < 0.15) or (0.85 < art_pct < 0.98):
 
-        res,n_to_rem,feats_keys = init(cid,m,c)
-        cid,spikes,nspikes,chan,mstdict,splits = res
-        print(feats_keys)
-
-        while len(outs) < n_to_rem and iters<10000:
-            splits=find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict)
-            iters+=1
-
-        fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,isi = bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes)
-
-        return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi
-    elif (0.85 < art_pct < 0.98):
-        temp_hyb = np.array(hyb_spks)
-        hyb_spks = real_spks
-        real_spks = temp_hyb
-
-        res,n_to_rem,feats_keys = init(cid,m,c)
+        res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
         print(feats_keys)
         
