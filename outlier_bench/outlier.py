@@ -9,8 +9,8 @@ import pandas as pd
 
 
 nchans = 6
-min_nspikes = 600
-max_ntimeseg = 10
+min_nspikes = 500
+max_ntimeseg = 8
 wavewin = slice(0,82)
 
 def get_nchunks():
@@ -19,8 +19,8 @@ def get_nchunks():
 
 def load_clust_data(cid,m,c):
     cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
-    n_to_rem = int(nspikes*.2)
-    feats_keys = list(mstdict.keys())[2:10]
+    n_to_rem = int(np.round(nspikes*.30))
+    feats_keys = list(mstdict.keys())[2:11]
     res = (cid,spikes,nspikes,chan,mstdict,splits)
     return res,n_to_rem,feats_keys
 
@@ -29,62 +29,51 @@ def run_exp_outlier(exp_clust,s,m,c):
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
-    outs_each_iter = []
     outs = []
+    outs_by_iter = []
     iters = 0
-    if (0.02 < art_pct < 0.15) or (0.85 < art_pct < 0.98):
-
+    if (0.30 < art_pct < 0.985):
         res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
-        print(feats_keys)
-        
+
         while len(outs) < n_to_rem and iters<1000:
-            splits=find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict)
+            splits,iterouts=find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict)
             iters+=1
+            outs_by_iter.append(iterouts)
 
-        fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,isi = bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes)
+        print('Cluster %d ran for %d iterations, removing %d of %d spikes in search.'%(cid,iters,len(outs),nspikes))
 
-        return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi
+        prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
+        return prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba
     else:
-        return None,None,None,None,None,None
+        return None,None,None,None
 
 def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
-    # Calculate performance metrics
-    TP = sum(np.in1d(outs,hyb_spks))
-    FP = sum(np.in1d(outs,real_spks))
-    assert (TP+FP) == len(outs)
-    fin_removed_prec = (TP/(TP+FP))
-    fin_spks = np.delete(spikes,np.in1d(spikes,outs))
+    # Calculate performance metrics on orig cluster
+    TP = sum(np.in1d(spikes,hyb_spks))
+    FP = sum(np.in1d(spikes,real_spks))
+    FN = len(hyb_spks)-TP
+    assert (TP+FP) == len(spikes)
+    before_f1 = TP/(TP+(0.5*(FP+FN)))
 
-
-    isi_ba = []
-    # Calculate initial interspike intervals
-    isi = np.diff(mstdict['Time'][:])
-    isi_ba.append(isi)
-
-    # Check that we have removed spikes
-    assert sum(np.in1d(spikes,fin_spks)) != len(spikes)
-    
-    # Calculate final interspike intervals
-    isi = np.diff(mstdict['Time'][np.in1d(spikes,fin_spks)])
-    isi_ba.append(isi)
-
-    # Calculate performance metrics
-    TP = sum(np.in1d(hyb_spks,fin_spks))
-    FP = sum(np.in1d(real_spks,fin_spks))
-    fin_prec = (TP/(TP+FP))
-    assert (TP+FP) == len(fin_spks)
-    prec_onstep = []
+    f1_onstep = []
     prec_rem_onstep = []
+    cum_outs = []
+    cum_outs_onstep = []
+
     n_outs_onstep = [len(x) for x in outs_each_iter]
     cum_n_outs_onstep = np.cumsum(n_outs_onstep)
-    cum_outs = []
-    for i,out_onstep in enumerate(outs_each_iter):
-        cum_outs.extend(out_onstep)
 
-        # Calculate performance metrics
-        TP = sum(np.in1d(cum_outs,hyb_spks))
-        FP = sum(np.in1d(cum_outs,real_spks))
+    for i,out_onstep in enumerate(outs_each_iter):
+        # Keeping track of which spikes we have excluded
+        cum_outs.extend(out_onstep)
+        cum_outs_onstep.append(cum_outs)
+       
+        # Calculate performance metrics. Since this is for REMOVED spikes--a true positive is removing
+        # a spike that doesnt belong in this case, spikes which don't belong are spikes which were NOT 
+        # inserted by hybridfactory, since hybridfactory clusters are the only ones we know for sure
+        FP = sum(np.in1d(cum_outs,hyb_spks))
+        TP = sum(np.in1d(cum_outs,real_spks))
         assert (TP+FP) == len(cum_outs)
 
         # Calculate what the precision was in removing spikes which are artifical
@@ -97,11 +86,15 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
         # Calculate performance metrics
         TP = sum(np.in1d(hyb_spks,remaining_spks))
         FP = sum(np.in1d(real_spks,remaining_spks))
-        prec = (TP/(TP+FP))
+        FN = len(hyb_spks)-TP
+        F1 = TP/(TP+(0.5*(FP+FN)))
         assert (TP+FP) == len(remaining_spks)
-        prec_onstep.append(prec)
+        f1_onstep.append(F1)
 
-    return fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,isi_ba
+    after_f1 = np.max(f1_onstep)
+    f1_ba = [before_f1,after_f1]
+
+    return prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba
 
 def time_split(nchunks,splits,nspikes,spikes):
     splits = {}
@@ -145,17 +138,21 @@ def get_spikes(cid,m,c):
     temp_t.extend(spike_times[:])
     temp_f0.extend(features[:,:,0])
     temp_f1.extend(features[:,:,1])
+    temp_f2.extend(features[:,:,2])
     mstdict.update({'Time': np.array(temp_t)})
     for i,d in enumerate(chan):
         mstdict.update({"PC0_C"+str(d): np.array(temp_f0)[:,i]})
         mstdict.update({"PC1_C"+str(d): np.array(temp_f1)[:,i]})
+        mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
     
     return (cid,spikes,nspikes,chan,mstdict,splits)
 
 
-def find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict):
+def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
     keys = range(1,1+len(splits))
-    n_excl_per_iter = 5
+    n_excl_per_iter = int(n_to_rem/(75*len(keys)))
+    n_excl_per_iter = 5 if n_excl_per_iter<=1 else n_excl_per_iter
+    outs_each_iter = []
     for d in keys:
         which = []
         train = []
@@ -219,15 +216,14 @@ def find_out(splits,outs,outs_each_iter,spikes,feats_keys,mstdict):
             
             outinds = np.flip(np.argsort(to_rem_from))[0:n_excl_per_iter]
             outinds = spikes[inds_rem[outinds]]
-
             assert np.all(np.in1d(outinds,cnk))
 
             outs.extend(outinds)
-            outs_each_iter.append(outinds)
+            outs_each_iter.extend(outinds)
             
             
             a = (splits[d])
             spike_rem = np.nonzero(np.in1d(a,outinds))
             b = np.delete(a,spike_rem)
             splits.update({d: (b)})
-            return splits
+            return splits,outs_each_iter

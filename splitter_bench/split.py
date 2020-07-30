@@ -14,11 +14,11 @@ def run_exp_split(exp_clust,s,m,c,nclusts):
     if 0.1 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
         splits = cluster(mstdict,spikes,list(mstdict.keys())[2:8],nclusts)
-        clust_precisions,f1s_merged,merged_clusts = merge_clusters(splits,real_spks,hyb_spks,nclusts)
+        clust_precisions,f1s_merged,merged_clusts,f1_ba = merge_clusters(splits,real_spks,hyb_spks,nclusts)
         #s.actions.split(merged['r'])
-        return art_pct,clust_precisions,f1s_merged,merged_clusts
+        return art_pct,clust_precisions,f1s_merged,merged_clusts,f1_ba
     else:
-        return None,None,None,None
+        return None,None,None,None,None
 
 def get_spikes(cid,m,c):
     spikes = m.get_cluster_spikes(cid)
@@ -73,12 +73,11 @@ def merge_clusters(splits,real_spikes,hyb_spikes,nclusts):
     keys = list(splits.keys())
     clust_precisions = []
 
-    #split_spikes = splits[d]
-    #TP = sum(np.in1d(hyb_spikes,split_spikes))
-    #FP = sum(np.in1d(real_spikes,split_spikes))
-    #assert (TP+FP) == len(split_spikes)
-    #FN = len(hyb_spikes)-TP
-    #F1 = TP/(TP+0.5*(FP+FN))
+    TP = sum(np.in1d(hyb_spikes,spikes))
+    FP = sum(np.in1d(real_spikes,spikes))
+    assert (TP+FP) == len(spikes)
+    FN = len(hyb_spikes)-TP
+    before_F1 = TP/(TP+0.5*(FP+FN))
 
     # Using precision as metric to decide merge order
     for i,d in enumerate(keys):
@@ -108,5 +107,6 @@ def merge_clusters(splits,real_spikes,hyb_spikes,nclusts):
         merged_clusts.append(sort_map[0:i])
 
     # Some code to find optimum F1 and return dict with the appropriate split
-
-    return clust_precisions,f1s_merged,merged_clusts
+    after_F1 = np.max(f1s_merged)
+    f1_ba = [before_F1,after_F1]
+    return clust_precisions,f1s_merged,merged_clusts,f1_ba

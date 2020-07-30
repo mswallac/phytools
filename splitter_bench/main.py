@@ -30,14 +30,14 @@ hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
 
 diffs = []
 idxs = []
-exp_dict = {'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[]}
+exp_dict = {'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[],'f1_ba':[]}
 run_ct = 0
 nclusts = 15
 if 'hyb_clu_list' in dir():
     if len(hyb_clu_list)==len(gt_clus):
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                art_pct,clust_precs,f1s_merged,merged_clusts = split.run_exp_split(x,s,m,c,nclusts)
+                art_pct,clust_precs,f1s_merged,merged_clusts,f1_ba = split.run_exp_split(x,s,m,c,nclusts)
                 if not (clust_precs is None):
                     exp_dict['gt_clu'].append(clu)
                     exp_dict['hyb_clu'].append(x['id'])
@@ -45,6 +45,7 @@ if 'hyb_clu_list' in dir():
                     exp_dict['f1_scores'].append(f1s_merged)
                     exp_dict['merged'].append(merged_clusts)
                     exp_dict['art%'].append(art_pct)
+                    exp_dict['f1_ba'].append(f1_ba)
                     print('Successful split!')
     else:
         print('Old data does not match current # of clusters!')
@@ -62,7 +63,7 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            art_pct,clust_precs,f1s_merged,merged_clusts = split.run_exp_split(x,s,m,c,nclusts)
+            art_pct,clust_precs,f1s_merged,merged_clusts,f1_ba = split.run_exp_split(x,s,m,c,nclusts)
             if not (clust_precs is None):
                 exp_dict['gt_clu'].append(clu)
                 exp_dict['hyb_clu'].append(x['id'])
@@ -70,10 +71,24 @@ else:
                 exp_dict['f1_scores'].append(f1s_merged)
                 exp_dict['merged'].append(merged_clusts)
                 exp_dict['art%'].append(art_pct)
+                exp_dict['f1_ba'].append(f1_ba)
                 print('Successful split!')
 
-timestr_pdf = time.strftime("%Y%m%d-%H%M%S")+('_n%d.pdf'%nclusts)
+timestr = time.strftime("splitter_%Y%m%d-%H%M%S")
+timestr_pdf = timestr+"_n%d.pdf"%nclusts
+timestr_dict_npy = timestr+"_n%d_res.npy"
+
+np.save(timestr_dict_npy,exp_dict)
+
 pp = PdfPages(timestr_pdf)
+
+f1_ba_arr = np.array(exp_dict['f1_ba'])
+fig1=plt.figure()
+plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1])
+plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
 
 for i,clu in enumerate(exp_dict['gt_clu']):
     fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=False,sharex=True)
@@ -82,7 +97,9 @@ for i,clu in enumerate(exp_dict['gt_clu']):
     axes[0].set_ylabel('Precision (%)')
     axes[0].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
     f1_merged_scores = np.array(exp_dict['f1_scores'][i])
+    best_idx = np.argmax(f1_merged_scores)
     axes[1].plot(np.arange(1,nclusts+1),(f1_merged_scores*100))
+    axes[1].plot(np.arange(1,nclusts+1)[best_idx],(f1_merged_scores*100)[best_idx],'ro')
     axes[1].set_xlabel('Sub-clusters combined (count)')
     axes[1].set_ylabel('F1 Score (%) of combined clust.')
     axes[1].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))

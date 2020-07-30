@@ -8,7 +8,6 @@ import time
 import os
 import importlib
 from matplotlib import cm
-
 # For development pipeline convenience
 importlib.reload(outlier)
 
@@ -34,30 +33,21 @@ idxs = []
 exp_dict = {}
 run_ct = 0
 
-exp_dict.update({'prec_onstep':[]})
-exp_dict.update({'prec_rem_onstep':[]})
-exp_dict.update({'cum_nouts':[]})
-exp_dict.update({'hyb_clu':[]})
-exp_dict.update({'art%':[]})
-exp_dict.update({'iters':[]})
-exp_dict.update({'isi':[]})
-
+exp_dict.update({'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[]})
 gt_clus = gt_clus
 
-if 'hyb_clu_list' in dir():
-    #if len(hyb_clu_list)==len(gt_clus):
-    if True:
+if hyb_clu_list:
+    if len(hyb_clu_list)==len(gt_clus):
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi = outlier.run_exp_outlier(x,s,m,c)
-                if fin_prec:
-                    exp_dict['prec_onstep'].append(prec_onstep)
+                prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = outlier.run_exp_outlier(x,s,m,c)
+                if f1_onstep:
+                    exp_dict['f1_onstep'].append(f1_onstep)
                     exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
                     exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
-                    exp_dict['iters'].append(iters)
-                    exp_dict['isi'].append(isi)
+                    exp_dict['f1_ba'].append(f1_ba)
     else:
         print('Old data does not match current # of clusters!')
 else:
@@ -74,15 +64,14 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-                fin_prec,prec_rem_onstep,prec_onstep,cum_n_outs_onstep,iters,isi = outlier.run_exp_outlier(x,s,m,c)
-                if fin_prec:
-                    exp_dict['prec_onstep'].append(prec_onstep)
+                prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = outlier.run_exp_outlier(x,s,m,c)
+                if f1_onstep:
+                    exp_dict['f1_onstep'].append(f1_onstep)
                     exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
                     exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
-                    exp_dict['iters'].append(iters)
-                    exp_dict['isi'].append(isi)
+                    exp_dict['f1_ba'].append(f1_ba)
 
 timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
 timestr_pdf = timestr+".pdf"
@@ -91,26 +80,36 @@ timestr_dict_npy = timestr+"_res.npy"
 np.save(timestr_dict_npy,exp_dict)
 
 pp = PdfPages(timestr_pdf)
+
+f1_ba_arr = np.array(exp_dict['f1_ba'])
+fig1=plt.figure()
+plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1])
+for i in range(f1_ba_arr.shape[0]):
+    plt.text(f1_ba_arr[i,0],f1_ba_arr[i,1]*1.06,'%d'%exp_dict['hyb_clu'][i])
+plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.1)
+plt.ylabel('F1 After')
+plt.xlabel('F1 Before')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
+
 for i,clu in enumerate(exp_dict['hyb_clu']):
-    if exp_dict['iters'][i]!=None:
-        fig,axes=plt.subplots(nrows=1,ncols=3,figsize=(8,4),sharey=False,sharex=False)
-        axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['prec_onstep'][i])
-        axes[0].set_xlabel('N spikes removed (count)')
-        axes[0].set_ylabel('Precision of remaining spikes(%)')
-        axes[0].axhline(y=exp_dict['art%'][i],c='k',ls='--')
-        axes[0].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
-        axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['prec_rem_onstep'][i])
-        axes[1].set_xlabel('N spikes removed (count)')
-        axes[1].set_ylabel('Precision of removed spikes (%)')
-        axes[1].axhline(y=exp_dict['art%'][i],c='k',ls='--')
-        axes[1].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
-        axes[2].hist(exp_dict['isi'][i][0],color='r',bins=np.linspace(0.0,.050,102),label='Before',alpha=.5)
-        axes[2].hist(exp_dict['isi'][i][0],color='b',bins=np.linspace(0.0,.050,102),label='After',alpha=.5)
-        axes[2].legend()
-        axes[2].set_xlabel('Inter-spike Interval (sec.)')
-        axes[2].set_ylabel('Count')
-        axes[2].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
-        fig.tight_layout()
-        plt.draw()
-        pp.savefig(plt.gcf())
+    max_idx = np.argmax(exp_dict['f1_onstep'][i])
+    fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey=False,sharex=False)
+    axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i])
+    axes[0].plot(exp_dict['cum_nouts'][i][max_idx],exp_dict['f1_onstep'][i][max_idx],'ro')
+    axes[0].set_xlabel('N spikes removed (count)')
+    axes[0].set_ylabel('F1 score')
+    axes[0].axhline(y=exp_dict['art%'][i],c='k',ls='--')
+    axes[0].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],((exp_dict['art%'][i])*100)))
+    axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['prec_rem_onstep'][i])
+    axes[1].plot(exp_dict['cum_nouts'][i][max_idx],exp_dict['prec_rem_onstep'][i][max_idx],'ro')
+    axes[1].set_xlabel('N spikes removed (count)')
+    axes[1].set_ylabel('Precision of removed spikes')
+    axes[1].axhline(y=exp_dict['art%'][i],c='k',ls='--')
+    axes[1].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    fig.tight_layout()
+    plt.draw()
+    pp.savefig(plt.gcf())
+
 pp.close()
