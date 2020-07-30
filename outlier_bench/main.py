@@ -37,7 +37,8 @@ exp_dict.update({'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'
 gt_clus = gt_clus
 
 if hyb_clu_list:
-    if len(hyb_clu_list)==len(gt_clus):
+    #if len(hyb_clu_list)==len(gt_clus):
+    if True:
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
                 prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = outlier.run_exp_outlier(x,s,m,c)
@@ -83,9 +84,9 @@ pp = PdfPages(timestr_pdf)
 
 f1_ba_arr = np.array(exp_dict['f1_ba'])
 fig1=plt.figure()
-plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1])
+plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1],s=.2)
 for i in range(f1_ba_arr.shape[0]):
-    plt.text(f1_ba_arr[i,0],f1_ba_arr[i,1]*1.06,'%d'%exp_dict['hyb_clu'][i])
+    plt.text(f1_ba_arr[i,0],f1_ba_arr[i,1]*1.0,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
 plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.1)
 plt.ylabel('F1 After')
 plt.xlabel('F1 Before')
@@ -113,3 +114,5 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
     pp.savefig(plt.gcf())
 
 pp.close()
+import winsound
+winsound.Beep(450,900)

@@ -82,10 +82,15 @@ np.save(timestr_dict_npy,exp_dict)
 
 pp = PdfPages(timestr_pdf)
 
+
 f1_ba_arr = np.array(exp_dict['f1_ba'])
 fig1=plt.figure()
-plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1])
-plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--')
+plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1],s=.2)
+for i in range(f1_ba_arr.shape[0]):
+    plt.text(f1_ba_arr[i,0],f1_ba_arr[i,1]*1.0,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.1)
+plt.ylabel('F1 After')
+plt.xlabel('F1 Before')
 fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())

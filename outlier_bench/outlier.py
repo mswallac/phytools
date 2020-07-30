@@ -9,8 +9,8 @@ import pandas as pd
 
 
 nchans = 6
-min_nspikes = 500
-max_ntimeseg = 8
+min_nspikes = 800
+max_ntimeseg = 10
 wavewin = slice(0,82)
 
 def get_nchunks():
@@ -19,7 +19,7 @@ def get_nchunks():
 
 def load_clust_data(cid,m,c):
     cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
-    n_to_rem = int(np.round(nspikes*.30))
+    n_to_rem = int(np.round(nspikes*.50))
     feats_keys = list(mstdict.keys())[2:11]
     res = (cid,spikes,nspikes,chan,mstdict,splits)
     return res,n_to_rem,feats_keys
@@ -32,11 +32,11 @@ def run_exp_outlier(exp_clust,s,m,c):
     outs = []
     outs_by_iter = []
     iters = 0
-    if (0.30 < art_pct < 0.985):
+    if (0.40 < art_pct < 0.985):
         res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
 
-        while len(outs) < n_to_rem and iters<1000:
+        while len(outs) < n_to_rem and iters<1500:
             splits,iterouts=find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict)
             iters+=1
             outs_by_iter.append(iterouts)
@@ -150,7 +150,7 @@ def get_spikes(cid,m,c):
 
 def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
     keys = range(1,1+len(splits))
-    n_excl_per_iter = int(n_to_rem/(75*len(keys)))
+    n_excl_per_iter = int(n_to_rem/(150*len(keys)))
     n_excl_per_iter = 5 if n_excl_per_iter<=1 else n_excl_per_iter
     outs_each_iter = []
     for d in keys:
