@@ -7,7 +7,9 @@ import split
 import time
 import os
 import importlib
-
+import sys
+timestr = time.strftime("splitter_%Y%m%d-%H%M%S")
+sys.stdout = open(timestr+'.txt','w')
 # For development pipeline convenience
 importlib.reload(split)
 
@@ -114,6 +116,6 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
     pp.savefig(plt.gcf())
 
 pp.close()
-
+sys.stdout.close()
 import winsound
 winsound.Beep(450,900)

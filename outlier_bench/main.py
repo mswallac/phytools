@@ -8,6 +8,9 @@ import time
 import os
 import importlib
 from matplotlib import cm
+import sys
+timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
+sys.stdout = open(timestr+'.txt','w')
 # For development pipeline convenience
 importlib.reload(outlier)
 
@@ -74,7 +77,6 @@ else:
                     exp_dict['hyb_clu'].append(x['id'])
                     exp_dict['f1_ba'].append(f1_ba)
 
-timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
 timestr_pdf = timestr+".pdf"
 timestr_dict_npy = timestr+"_res.npy"
 
@@ -112,6 +114,6 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
     pp.savefig(plt.gcf())
 
 pp.close()
-
+sys.stdout.close()
 import winsound
 winsound.Beep(450,900)
