@@ -9,7 +9,7 @@ import pandas as pd
 
 
 nchans = 6
-min_nspikes = 800
+min_nspikes = 1000
 max_ntimeseg = 10
 wavewin = slice(0,82)
 
@@ -138,20 +138,20 @@ def get_spikes(cid,m,c):
     temp_t.extend(spike_times[:])
     temp_f0.extend(features[:,:,0])
     temp_f1.extend(features[:,:,1])
-    temp_f2.extend(features[:,:,2])
+    #temp_f2.extend(features[:,:,2])
     mstdict.update({'Time': np.array(temp_t)})
     for i,d in enumerate(chan):
         mstdict.update({"PC0_C"+str(d): np.array(temp_f0)[:,i]})
         mstdict.update({"PC1_C"+str(d): np.array(temp_f1)[:,i]})
-        mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
+        #mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
     
     return (cid,spikes,nspikes,chan,mstdict,splits)
 
 
 def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
     keys = range(1,1+len(splits))
-    n_excl_per_iter = int(n_to_rem/(150*len(keys)))
-    n_excl_per_iter = 5 if n_excl_per_iter<=1 else n_excl_per_iter
+    n_excl_per_iter = int(n_to_rem/(50*len(keys)))
+    n_excl_per_iter = 2 if n_excl_per_iter<=1 else n_excl_per_iter
     outs_each_iter = []
     for d in keys:
         which = []

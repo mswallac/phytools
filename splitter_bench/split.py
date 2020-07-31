@@ -14,7 +14,7 @@ def run_exp_split(exp_clust,s,m,c,nclusts):
     if 0.1 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
         splits = cluster(mstdict,spikes,list(mstdict.keys())[2:8],nclusts)
-        clust_precisions,f1s_merged,merged_clusts,f1_ba = merge_clusters(splits,real_spks,hyb_spks,nclusts)
+        clust_precisions,f1s_merged,merged_clusts,f1_ba = merge_clusters(splits,real_spks,hyb_spks,spikes,nclusts)
         #s.actions.split(merged['r'])
         return art_pct,clust_precisions,f1s_merged,merged_clusts,f1_ba
     else:
@@ -68,7 +68,7 @@ def cluster(mstdict,spikes,feat_keys,nclusts):
         splits.update({(i): spikes[inter1]})
     return splits
 
-def merge_clusters(splits,real_spikes,hyb_spikes,nclusts):
+def merge_clusters(splits,real_spikes,hyb_spikes,spikes,nclusts):
     # Figure out what % each cluster is composed of each given cluster
     keys = list(splits.keys())
     clust_precisions = []

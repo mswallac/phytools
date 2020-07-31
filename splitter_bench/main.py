@@ -33,6 +33,8 @@ idxs = []
 exp_dict = {'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[],'f1_ba':[]}
 run_ct = 0
 nclusts = 15
+gt_clus = gt_clus
+
 if 'hyb_clu_list' in dir():
     if len(hyb_clu_list)==len(gt_clus):
         for i,clu in enumerate(gt_clus):
@@ -95,20 +97,23 @@ fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())
 
-for i,clu in enumerate(exp_dict['gt_clu']):
+for i,clu in enumerate(exp_dict['hyb_clu']):
     fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=False,sharex=True)
     axes[0].bar(np.arange(1,nclusts+1),(np.flip(np.sort(exp_dict['clu_precision'][i]))*100))
     axes[0].set_xlabel('Sub-cluster (idx)')
     axes[0].set_ylabel('Precision (%)')
-    axes[0].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    axes[0].set_title('Unit %d'%(clu))
     f1_merged_scores = np.array(exp_dict['f1_scores'][i])
     best_idx = np.argmax(f1_merged_scores)
     axes[1].plot(np.arange(1,nclusts+1),(f1_merged_scores*100))
     axes[1].plot(np.arange(1,nclusts+1)[best_idx],(f1_merged_scores*100)[best_idx],'ro')
     axes[1].set_xlabel('Sub-clusters combined (count)')
     axes[1].set_ylabel('F1 Score (%) of combined clust.')
-    axes[1].set_title('GT-%d / Artificial-%d (art%% %2.3f)'%(clu,exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    axes[1].set_title('Unit %d'%(clu))
     fig.tight_layout()
     pp.savefig(plt.gcf())
 
 pp.close()
+
+import winsound
+winsound.Beep(450,900)

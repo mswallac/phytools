@@ -36,7 +36,7 @@ run_ct = 0
 exp_dict.update({'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[]})
 gt_clus = gt_clus
 
-if hyb_clu_list:
+if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
     if True:
         for i,clu in enumerate(gt_clus):
@@ -101,18 +101,17 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
     axes[0].plot(exp_dict['cum_nouts'][i][max_idx],exp_dict['f1_onstep'][i][max_idx],'ro')
     axes[0].set_xlabel('N spikes removed (count)')
     axes[0].set_ylabel('F1 score')
-    axes[0].axhline(y=exp_dict['art%'][i],c='k',ls='--')
-    axes[0].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],((exp_dict['art%'][i])*100)))
+    axes[0].set_title('Unit %d'%(clu))
     axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['prec_rem_onstep'][i])
     axes[1].plot(exp_dict['cum_nouts'][i][max_idx],exp_dict['prec_rem_onstep'][i][max_idx],'ro')
     axes[1].set_xlabel('N spikes removed (count)')
     axes[1].set_ylabel('Precision of removed spikes')
-    axes[1].axhline(y=exp_dict['art%'][i],c='k',ls='--')
-    axes[1].set_title('Unit %d (art%% %2.3f)'%(exp_dict['hyb_clu'][i],(exp_dict['art%'][i]*100)))
+    axes[1].set_title('Unit %d'%(clu))
     fig.tight_layout()
     plt.draw()
     pp.savefig(plt.gcf())
 
 pp.close()
+
 import winsound
 winsound.Beep(450,900)
