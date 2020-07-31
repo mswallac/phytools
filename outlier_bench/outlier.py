@@ -49,12 +49,14 @@ def run_exp_outlier(exp_clust,s,m,c):
         return None,None,None,None
 
 def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
+    n_art = len(hyb_spks)
     # Calculate performance metrics on orig cluster
     TP = sum(np.in1d(spikes,hyb_spks))
     FP = sum(np.in1d(spikes,real_spks))
-    FN = len(hyb_spks)-TP
-    assert (TP+FP) == len(spikes)
+    FN = n_art-TP
     before_f1 = TP/(TP+(0.5*(FP+FN)))
+    assert (TP+FP) == len(spikes)
+    assert FN == 0 
 
     f1_onstep = []
     prec_rem_onstep = []
@@ -86,7 +88,7 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
         # Calculate performance metrics
         TP = sum(np.in1d(hyb_spks,remaining_spks))
         FP = sum(np.in1d(real_spks,remaining_spks))
-        FN = len(hyb_spks)-TP
+        FN = n_art-TP
         F1 = TP/(TP+(0.5*(FP+FN)))
         assert (TP+FP) == len(remaining_spks)
         f1_onstep.append(F1)

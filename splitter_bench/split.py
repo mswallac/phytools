@@ -15,7 +15,13 @@ def run_exp_split(exp_clust,s,m,c,nclusts):
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
         splits = cluster(mstdict,spikes,list(mstdict.keys())[2:8],nclusts)
         clust_precisions,f1s_merged,merged_clusts,f1_ba = merge_clusters(splits,real_spks,hyb_spks,spikes,nclusts)
-        #s.actions.split(merged['r'])
+
+        sts = []
+        for x in merged_clusts[np.argmax(f1s_merged)]:
+            sts.extend(splits[x])
+        
+        s.actions.split(sts)
+        
         return art_pct,clust_precisions,f1s_merged,merged_clusts,f1_ba
     else:
         return None,None,None,None,None
@@ -72,11 +78,14 @@ def merge_clusters(splits,real_spikes,hyb_spikes,spikes,nclusts):
     # Figure out what % each cluster is composed of each given cluster
     keys = list(splits.keys())
     clust_precisions = []
+    n_art = len(hyb_spikes)
 
     TP = sum(np.in1d(hyb_spikes,spikes))
     FP = sum(np.in1d(real_spikes,spikes))
+    FN = n_art-TP
     assert (TP+FP) == len(spikes)
-    FN = len(hyb_spikes)-TP
+    assert FN == 0 
+
     before_F1 = TP/(TP+0.5*(FP+FN))
 
     # Using precision as metric to decide merge order
@@ -85,7 +94,7 @@ def merge_clusters(splits,real_spikes,hyb_spikes,spikes,nclusts):
         TP = sum(np.in1d(hyb_spikes,split_spikes))
         FP = sum(np.in1d(real_spikes,split_spikes))
         assert (TP+FP) == len(split_spikes)
-        FN = len(hyb_spikes)-TP
+        FN = n_art-TP
         clust_precisions.append(TP/(TP+FP))
 
     clust_precisions=np.array(clust_precisions)
@@ -101,7 +110,7 @@ def merge_clusters(splits,real_spikes,hyb_spikes,spikes,nclusts):
         TP = sum(np.in1d(hyb_spikes,merge_spikes))
         FP = sum(np.in1d(real_spikes,merge_spikes))
         assert (TP+FP) == len(merge_spikes)
-        FN = len(hyb_spikes)-TP
+        FN = n_art-TP
         F1 = TP/(TP+0.5*(FP+FN))
         f1s_merged.append(F1)
         merged_clusts.append(sort_map[0:i])
