@@ -32,7 +32,7 @@ def run_exp_outlier(exp_clust,s,m,c):
     outs = []
     outs_by_iter = []
     iters = 0
-    if (0.40 < art_pct < 0.985):
+    if (0.10 < art_pct < 0.95):
         res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
 
@@ -140,12 +140,12 @@ def get_spikes(cid,m,c):
     temp_t.extend(spike_times[:])
     temp_f0.extend(features[:,:,0])
     temp_f1.extend(features[:,:,1])
-    #temp_f2.extend(features[:,:,2])
+    temp_f2.extend(features[:,:,2])
     mstdict.update({'Time': np.array(temp_t)})
     for i,d in enumerate(chan):
         mstdict.update({"PC0_C"+str(d): np.array(temp_f0)[:,i]})
         mstdict.update({"PC1_C"+str(d): np.array(temp_f1)[:,i]})
-        #mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
+        mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
     
     return (cid,spikes,nspikes,chan,mstdict,splits)
 

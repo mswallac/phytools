@@ -1,4 +1,5 @@
 from matplotlib.backends.backend_pdf import PdfPages
+from phylib.io.traces import get_ephys_reader
 import matplotlib.pyplot as plt
 from hyb_clu import hyb_clu
 import numpy as np
@@ -8,15 +9,31 @@ import time
 import os
 import importlib
 import sys
+
+# Load raw traces for calculation of SNR
+trace_args = ['sample_rate', 'n_channels_dat', 'dtype', 'offset']
+trace_vals = [[25000],[64],[np.int16],[0]]
+kwargs = {trace_args[x]: trace_vals[x][0] for x in range(len(trace_args))}
+data_dir = os.getcwd()+r'\ConcatenatedData_Probe1.GT.bin'
+traces = get_ephys_reader(data_dir, **kwargs)
+pbounds = slice(traces.part_bounds[0],traces.part_bounds[1])
+traces = traces._get_part(pbounds,0)
+
+# Noise estimate for spikesorting data
+noise_est = lambda data : np.median((np.abs(data))/0.6745)
+
+# Replace stdout with text file.
 timestr = time.strftime("splitter_%Y%m%d-%H%M%S")
+orig_stdout = sys.stdout
 sys.stdout = open(timestr+'.txt','w')
+
 # For development pipeline convenience
 importlib.reload(split)
 
 # First, data directories, ground truth (GT) clusters, artificially added clusters,
 # and clusters associated with the former two types.
 # Data directories
-raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01'
+raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01_prb1'
 hyb_data_dir = os.getcwd()
 # Artificial Clusters (from output of hybridfactory)
 art_units = pd.read_csv(hyb_data_dir+r'\artificial_units-test.csv')
@@ -30,18 +47,20 @@ raw_spike_times = np.load(raw_data_dir+r'\spike_times.npy')
 hyb_spike_clus = np.load(hyb_data_dir+r'\spike_clusters.npy')
 hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
 
+# Initialize variables to record results and run experiments.
 diffs = []
 idxs = []
-exp_dict = {'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[],'f1_ba':[]}
+exp_dict = {'snr':[],'nspikes':[],'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[],'f1_ba':[],'sts':[]}
 run_ct = 0
 nclusts = 15
-gt_clus = gt_clus
+gt_clus = gt_clus[0:1]
+split_dict = {}
 
 if 'hyb_clu_list' in dir():
     if len(hyb_clu_list)==len(gt_clus):
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                art_pct,clust_precs,f1s_merged,merged_clusts,f1_ba = split.run_exp_split(x,s,m,c,nclusts)
+                art_pct,clust_precs,f1s_merged,merged_clusts,f1_ba,sts = split.run_exp_split(x,s,m,c,nclusts)
                 if not (clust_precs is None):
                     exp_dict['gt_clu'].append(clu)
                     exp_dict['hyb_clu'].append(x['id'])
@@ -50,7 +69,31 @@ if 'hyb_clu_list' in dir():
                     exp_dict['merged'].append(merged_clusts)
                     exp_dict['art%'].append(art_pct)
                     exp_dict['f1_ba'].append(f1_ba)
-                    print('Successful split!')
+                    exp_dict['sts'].append(sts)
+                    
+                    # Primary channel signal for this cluster
+                    trace = traces[:,x['best_c']]
+                    print(np.mean(trace),np.max(trace),np.min(trace))
+                    n_est = (noise_est(trace))
+                    
+                    # Get spike waveforms
+                    all_spikes = []
+                    all_spikes.extend(x['hyb'][:])
+                    all_spikes.extend(x['real'][:])
+                    exp_dict['nspikes'].append(len(all_spikes))
+
+                    waveform = m.get_waveforms(all_spikes,[x['best_c']])
+                    mean_waveform = np.mean(waveform,axis=1)
+                    s_est = np.max(np.abs(mean_waveform))
+                    
+                    SNR = (s_est/n_est)
+                    
+                    print('SNR: %f'%SNR)
+                    exp_dict['snr'].append(SNR)
+
+                    tmp_splt = {x['id']: (np.flip(np.sort(s.shown_cluster_ids))[:2])}
+                    split_dict.update(tmp_splt)
+                    print('%d - > %s' %(x['id'],np.flip(np.sort(s.shown_cluster_ids))[:2]))
     else:
         print('Old data does not match current # of clusters!')
 else:
@@ -67,7 +110,7 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            art_pct,clust_precs,f1s_merged,merged_clusts,f1_ba = split.run_exp_split(x,s,m,c,nclusts)
+            art_pct,clust_precs,f1s_merged,merged_clusts,f1_ba,sts = split.run_exp_split(x,s,m,c,nclusts)
             if not (clust_precs is None):
                 exp_dict['gt_clu'].append(clu)
                 exp_dict['hyb_clu'].append(x['id'])
@@ -76,29 +119,83 @@ else:
                 exp_dict['merged'].append(merged_clusts)
                 exp_dict['art%'].append(art_pct)
                 exp_dict['f1_ba'].append(f1_ba)
-                print('Successful split!')
+                exp_dict['sts'].append(sts)
+                
+                    
+                # Primary channel signal for this cluster
+                trace = traces[:,x['best_c']]
+                print(np.mean(trace),np.max(trace),np.min(trace))
+                n_est = (noise_est(trace))
+                
+                # Get spike waveforms
+                all_spikes = []
+                all_spikes.extend(x['hyb'][:])
+                all_spikes.extend(x['real'][:])
+                exp_dict['nspikes'].append(len(all_spikes))
+                
+                waveform = m.get_waveforms(all_spikes,[x['best_c']])
+                mean_waveform = np.mean(waveform,axis=1)
+                s_est = np.max(np.abs(mean_waveform))
+                
+                SNR = (s_est/n_est)
+                
+                print('SNR: %f'%SNR)
+                exp_dict['snr'].append(SNR)
 
+                tmp_splt = {x['id']: (np.flip(np.sort(s.shown_cluster_ids))[:2])}
+                split_dict.update(tmp_splt)
+                print('%d - > %s' %(x['id'],np.flip(np.sort(s.shown_cluster_ids))[:2]))
+
+# Prepare strings for output files
 timestr = time.strftime("splitter_%Y%m%d-%H%M%S")
-timestr_pdf = timestr+"_n%d.pdf"%nclusts
-timestr_dict_npy = timestr+"_n%d_res.npy"
+timestr_pdf = timestr+('_n%d.pdf'%nclusts)
+timestr_dict_npy = timestr+('_n%d_res.npy'%nclusts)
 
+# Save output files and init. PDF to save graphs to
 np.save(timestr_dict_npy,exp_dict)
-
+np.save(timestr+'_splits.npy',split_dict,allow_pickle=True)
 pp = PdfPages(timestr_pdf)
 
-
+# Prepare arrays for plotting
 f1_ba_arr = np.array(exp_dict['f1_ba'])
+f1_diff_arr = f1_ba_arr[:,1]-f1_ba_arr[:,0]
+
+# Plot F1 score before vs after
 fig1=plt.figure()
 plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1],s=.2)
 for i in range(f1_ba_arr.shape[0]):
-    plt.text(f1_ba_arr[i,0],f1_ba_arr[i,1]*1.0,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+    plt.text(f1_ba_arr[i,0]*1.002,f1_ba_arr[i,1]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
 plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.1)
 plt.ylabel('F1 After')
 plt.xlabel('F1 Before')
 fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())
+plt.close()
 
+# Plot SNR vs dF1
+fig1=plt.figure()
+plt.scatter(exp_dict['snr'],f1_diff_arr,s=.2)
+for i in range(f1_ba_arr.shape[0]):
+    plt.text(exp_dict['snr'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+plt.ylabel('dF1')
+plt.xlabel('SNR')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
+
+# Plot nspikes vs dF1
+fig1=plt.figure()
+plt.scatter(exp_dict['nspikes'],f1_diff_arr,s=.2)
+for i in range(f1_ba_arr.shape[0]):
+    plt.text(exp_dict['nspikes'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+plt.ylabel('dF1')
+plt.xlabel('Number of spikes (count)')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
+
+# Plot per-cluster representation of splitting process.
 for i,clu in enumerate(exp_dict['hyb_clu']):
     fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(8,4),sharey=False,sharex=True)
     axes[0].bar(np.arange(1,nclusts+1),(np.flip(np.sort(exp_dict['clu_precision'][i]))*100))
@@ -115,7 +212,9 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
     fig.tight_layout()
     pp.savefig(plt.gcf())
 
+# Close opened files, reassign stdout, beep to signal done.
 pp.close()
 sys.stdout.close()
+sys.stdout = orig_stdout
 import winsound
 winsound.Beep(450,900)

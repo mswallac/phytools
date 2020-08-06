@@ -11,20 +11,20 @@ def run_exp_split(exp_clust,s,m,c,nclusts):
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
-    if 0.1 < art_pct < 0.90:
+    if 0.05 < art_pct < 0.90:
         cid,spikes,nspikes,chan,mstdict = get_spikes([cid],m,c)
-        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:8],nclusts)
+        splits = cluster(mstdict,spikes,list(mstdict.keys())[2:11],nclusts)
         clust_precisions,f1s_merged,merged_clusts,f1_ba = merge_clusters(splits,real_spks,hyb_spks,spikes,nclusts)
 
         sts = []
-        for x in merged_clusts[np.argmax(f1s_merged)]:
+        keys = np.array(list(splits.keys()))
+        idxs = np.array(merged_clusts[np.argmax(f1s_merged)])
+        for x in keys[idxs]:
             sts.extend(splits[x])
-        
-        s.actions.split(sts)
-        
-        return art_pct,clust_precisions,f1s_merged,merged_clusts,f1_ba
+        #s.actions.split(sts)
+        return art_pct,clust_precisions,f1s_merged,merged_clusts,f1_ba,sts
     else:
-        return None,None,None,None,None
+        return None,None,None,None,None,None
 
 def get_spikes(cid,m,c):
     spikes = m.get_cluster_spikes(cid)
@@ -51,12 +51,12 @@ def get_spikes(cid,m,c):
     temp_t.extend(spike_times[:])
     temp_f0.extend(features[:,:,0])
     temp_f1.extend(features[:,:,1])
-    #temp_f2.extend(features[:,:,2])
+    temp_f2.extend(features[:,:,2])
     mstdict.update({'Time': np.array(temp_t)})
     for i,d in enumerate(chan):
         mstdict.update({"PC0_C"+str(d): np.array(temp_f0)[:,i]})
         mstdict.update({"PC1_C"+str(d): np.array(temp_f1)[:,i]})
-        #mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
+        mstdict.update({"PC2_C"+str(d): np.array(temp_f2)[:,i]})
     return (cid,spikes,nspikes,chan,mstdict)
 
 

@@ -10,6 +10,7 @@ import importlib
 from matplotlib import cm
 import sys
 timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
+orig_stdout = sys.stdout
 sys.stdout = open(timestr+'.txt','w')
 # For development pipeline convenience
 importlib.reload(outlier)
@@ -17,7 +18,7 @@ importlib.reload(outlier)
 # First, data directories, ground truth (GT) clusters, artificially added clusters,
 # and clusters associated with the former two types.
 # Data directories
-raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01'
+raw_data_dir = r'C:\Users\black\Desktop\eel6_2020-03-01_prb1'
 hyb_data_dir = os.getcwd()
 # Artificial Clusters (from output of hybridfactory)
 art_units = pd.read_csv(hyb_data_dir+r'\artificial_units-test.csv')
@@ -37,7 +38,7 @@ exp_dict = {}
 run_ct = 0
 
 exp_dict.update({'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[]})
-gt_clus = gt_clus
+gt_clus = gt_clus[0:1]
 
 if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
@@ -115,5 +116,6 @@ for i,clu in enumerate(exp_dict['hyb_clu']):
 
 pp.close()
 sys.stdout.close()
+sys.stdout = orig_stdout
 import winsound
 winsound.Beep(450,900)
