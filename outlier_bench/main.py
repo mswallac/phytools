@@ -1,4 +1,5 @@
 from matplotlib.backends.backend_pdf import PdfPages
+from phylib.io.traces import get_ephys_reader
 import matplotlib.pyplot as plt
 from hyb_clu import hyb_clu
 import numpy as np
@@ -9,9 +10,24 @@ import os
 import importlib
 from matplotlib import cm
 import sys
+
+# Load raw traces for calculation of SNR
+trace_args = ['sample_rate', 'n_channels_dat', 'dtype', 'offset']
+trace_vals = [[25000],[64],[np.int16],[0]]
+kwargs = {trace_args[x]: trace_vals[x][0] for x in range(len(trace_args))}
+data_dir = os.getcwd()+r'\ConcatenatedData_Probe1.GT.bin'
+traces = get_ephys_reader(data_dir, **kwargs)
+pbounds = slice(traces.part_bounds[0],traces.part_bounds[1])
+traces = traces._get_part(pbounds,0)
+
+# Noise estimate for spikesorting data
+noise_est = lambda data : np.median((np.abs(data))/0.6745)
+
+# Replace stdout with text file.
 timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
 orig_stdout = sys.stdout
 sys.stdout = open(timestr+'.txt','w')
+
 # For development pipeline convenience
 importlib.reload(outlier)
 
@@ -37,8 +53,8 @@ idxs = []
 exp_dict = {}
 run_ct = 0
 
-exp_dict.update({'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[]})
-gt_clus = gt_clus[0:1]
+exp_dict.update({'snr':[],'nspikes':[],'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[]})
+gt_clus = gt_clus
 
 if 'hyb_clu_list' in dir():
     #if len(hyb_clu_list)==len(gt_clus):
@@ -53,6 +69,24 @@ if 'hyb_clu_list' in dir():
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
                     exp_dict['f1_ba'].append(f1_ba)
+                    # Primary channel signal for this cluster
+                    trace = traces[:,x['best_c']]
+                    n_est = (noise_est(trace))
+                    
+                    # Get spike waveforms
+                    all_spikes = []
+                    all_spikes.extend(x['hyb'][:])
+                    all_spikes.extend(x['real'][:])
+                    exp_dict['nspikes'].append(len(all_spikes))
+
+                    waveform = m.get_waveforms(all_spikes,[x['best_c']])
+                    mean_waveform = np.mean(waveform,axis=1)
+                    s_est = np.max(np.abs(mean_waveform))
+                    
+                    SNR = (s_est/n_est)
+                    
+                    print('SNR: %f'%SNR)
+                    exp_dict['snr'].append(SNR)
     else:
         print('Old data does not match current # of clusters!')
 else:
@@ -77,6 +111,24 @@ else:
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
                     exp_dict['f1_ba'].append(f1_ba)
+                    # Primary channel signal for this cluster
+                    trace = traces[:,x['best_c']]
+                    n_est = (noise_est(trace))
+                    
+                    # Get spike waveforms
+                    all_spikes = []
+                    all_spikes.extend(x['hyb'][:])
+                    all_spikes.extend(x['real'][:])
+                    exp_dict['nspikes'].append(len(all_spikes))
+
+                    waveform = m.get_waveforms(all_spikes,[x['best_c']])
+                    mean_waveform = np.mean(waveform,axis=1)
+                    s_est = np.max(np.abs(mean_waveform))
+                    
+                    SNR = (s_est/n_est)
+                    
+                    print('SNR: %f'%SNR)
+                    exp_dict['snr'].append(SNR)
 
 timestr_pdf = timestr+".pdf"
 timestr_dict_npy = timestr+"_res.npy"
@@ -86,6 +138,9 @@ np.save(timestr_dict_npy,exp_dict)
 pp = PdfPages(timestr_pdf)
 
 f1_ba_arr = np.array(exp_dict['f1_ba'])
+f1_diff_arr = f1_ba_arr[:,1]-f1_ba_arr[:,0]
+
+# Plot before F1 vs after F1
 fig1=plt.figure()
 plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1],s=.2)
 for i in range(f1_ba_arr.shape[0]):
@@ -93,6 +148,28 @@ for i in range(f1_ba_arr.shape[0]):
 plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.1)
 plt.ylabel('F1 After')
 plt.xlabel('F1 Before')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
+
+# Plot SNR vs dF1
+fig1=plt.figure()
+plt.scatter(exp_dict['snr'],f1_diff_arr,s=.2)
+for i in range(f1_ba_arr.shape[0]):
+    plt.text(exp_dict['snr'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+plt.ylabel('dF1')
+plt.xlabel('SNR')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
+
+# Plot nspikes vs dF1
+fig1=plt.figure()
+plt.scatter(exp_dict['nspikes'],f1_diff_arr,s=.2)
+for i in range(f1_ba_arr.shape[0]):
+    plt.text(exp_dict['nspikes'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+plt.ylabel('dF1')
+plt.xlabel('Number of spikes (count)')
 fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())

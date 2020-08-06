@@ -73,7 +73,6 @@ if 'hyb_clu_list' in dir():
                     
                     # Primary channel signal for this cluster
                     trace = traces[:,x['best_c']]
-                    print(np.mean(trace),np.max(trace),np.min(trace))
                     n_est = (noise_est(trace))
                     
                     # Get spike waveforms

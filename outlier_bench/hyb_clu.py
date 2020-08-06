@@ -55,8 +55,7 @@ class hyb_clu(object):
 	            idx_match_pct = (sum(matched_hyb)/len(art_clu_spikes))
 	            hyb_frac = (self.clu_counts[x]/len(c_clu_spikes))
 	            #print('\t\t%2.3f %% (%d/%d) artificial spikes matched by index in hybrid (for confirmation)'%(idx_match_pct*100,sum(matched_hyb),len(art_clu_spikes)))
-	            self.exp_clusts.append({'id':x,'hyb':hyb_spikes,'real':real_spikes,'art_pct':hyb_frac})
-        return
+self.exp_clusts.append({'id':x,'hyb':hyb_spikes,'real':real_spikes,'art_pct':hyb_frac,'best_c':self.c.get_best_channel(x)})        return
     
     def merge_hybrid(self):
         #Prepare to merge all the small clusters which contain artificial spikes together
