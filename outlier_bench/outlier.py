@@ -20,11 +20,17 @@ def get_nchunks():
 def load_clust_data(cid,m,c):
     cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
     n_to_rem = int(np.round(nspikes*.50))
-    feats_keys = list(mstdict.keys())[2:11]
+    use_keys = []
+    #use_inds = np.array([2,3,4,5,8,11])
+    use_inds = np.arange(0,11)
+    feats_keys = list(mstdict.keys())
+    for i in use_inds:
+        use_keys.append(feats_keys[i])
     res = (cid,spikes,nspikes,chan,mstdict,splits)
-    return res,n_to_rem,feats_keys
+    print(use_keys)
+    return res,n_to_rem,use_keys
 
-def run_exp_outlier(exp_clust,s,m,c):
+def run_exp_outlier(exp_clust,s,m,c,n_minima):
     cid = exp_clust['id']
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
@@ -32,7 +38,7 @@ def run_exp_outlier(exp_clust,s,m,c):
     outs = []
     outs_by_iter = []
     iters = 0
-    if (0.10 < art_pct < 0.95):
+    if (0.10 < art_pct < 0.98):
         res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
 
@@ -43,21 +49,25 @@ def run_exp_outlier(exp_clust,s,m,c):
 
         print('Cluster %d ran for %d iterations, removing %d of %d spikes in search.'%(cid,iters,len(outs),nspikes))
 
-        prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
-        return prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba
+        # split code
+        
+        prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes,n_minima)
+        return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
     else:
-        return None,None,None,None
+        return None,None,None,None,None,None,None
 
-def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
+def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
     n_art = len(hyb_spks)
     # Calculate performance metrics on orig cluster
     TP = sum(np.in1d(spikes,hyb_spks))
     FP = sum(np.in1d(spikes,real_spks))
     FN = n_art-TP
-    before_f1 = TP/(TP+(0.5*(FP+FN)))
+    before_fdr = FP/(TP+FP)
+    before_f1 = TP/(TP+0.5*(FP+FN))
     assert (TP+FP) == len(spikes)
     assert FN == 0 
 
+    fdr_onstep = []
     f1_onstep = []
     prec_rem_onstep = []
     cum_outs = []
@@ -89,14 +99,27 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
         TP = sum(np.in1d(hyb_spks,remaining_spks))
         FP = sum(np.in1d(real_spks,remaining_spks))
         FN = n_art-TP
-        F1 = TP/(TP+(0.5*(FP+FN)))
+        FDR = FP/(TP+FP)
+        F1 = TP/(TP+0.5*(FP+FN))
         assert (TP+FP) == len(remaining_spks)
+        fdr_onstep.append(FDR)
         f1_onstep.append(F1)
 
-    after_f1 = np.max(f1_onstep)
-    f1_ba = [before_f1,after_f1]
+    fdr_ba = [before_fdr]
+    f1_ba = [before_f1]
 
-    return prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba
+    n_minima = nmin
+    fdr_min_idxs = []
+    for x in range(n_minima):
+        idx1 = np.round(x*(len(fdr_onstep)/n_minima)).astype(int)
+        idx2 = np.round((x+1)*(len(fdr_onstep)/n_minima)).astype(int)
+        temp_fdr = fdr_onstep[idx1:idx2]
+        min_idx = idx1+np.argmin(temp_fdr)
+        fdr_min_idxs.append(min_idx)
+        fdr_ba.append(fdr_onstep[min_idx])
+        f1_ba.append(f1_onstep[min_idx])
+        
+    return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
 
 def time_split(nchunks,splits,nspikes,spikes):
     splits = {}

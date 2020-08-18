@@ -53,7 +53,7 @@ idxs = []
 exp_dict = {'snr':[],'nspikes':[],'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[],'f1_ba':[],'sts':[]}
 run_ct = 0
 nclusts = 15
-gt_clus = gt_clus[0:1]
+gt_clus = gt_clus
 split_dict = {}
 
 if 'hyb_clu_list' in dir():
@@ -73,6 +73,7 @@ if 'hyb_clu_list' in dir():
                     
                     # Primary channel signal for this cluster
                     trace = traces[:,x['best_c']]
+                    print(trace.shape)
                     n_est = (noise_est(trace))
                     
                     # Get spike waveforms
@@ -80,9 +81,8 @@ if 'hyb_clu_list' in dir():
                     all_spikes.extend(x['hyb'][:])
                     all_spikes.extend(x['real'][:])
                     exp_dict['nspikes'].append(len(all_spikes))
-
-                    waveform = m.get_waveforms(all_spikes,[x['best_c']])
-                    mean_waveform = np.mean(waveform,axis=1)
+                    waveform = m.get_cluster_spike_waveforms(x['id'])[:,:,0]
+                    mean_waveform = np.mean(waveform,axis=0)
                     s_est = np.max(np.abs(mean_waveform))
                     
                     SNR = (s_est/n_est)
@@ -131,9 +131,8 @@ else:
                 all_spikes.extend(x['hyb'][:])
                 all_spikes.extend(x['real'][:])
                 exp_dict['nspikes'].append(len(all_spikes))
-                
-                waveform = m.get_waveforms(all_spikes,[x['best_c']])
-                mean_waveform = np.mean(waveform,axis=1)
+                waveform = m.get_cluster_spike_waveforms(x['id'])[:,:,0]
+                mean_waveform = np.mean(waveform,axis=0)
                 s_est = np.max(np.abs(mean_waveform))
                 
                 SNR = (s_est/n_est)
@@ -148,16 +147,16 @@ else:
 # Prepare strings for output files
 timestr = time.strftime("splitter_%Y%m%d-%H%M%S")
 timestr_pdf = timestr+('_n%d.pdf'%nclusts)
-timestr_dict_npy = timestr+('_n%d_res.npy'%nclusts)
+timestr_dict_npy = timestr+('_res.npy')
 
 # Save output files and init. PDF to save graphs to
-np.save(timestr_dict_npy,exp_dict)
+np.save(timestr_dict_npy,exp_dict,allow_pickle=True)
 np.save(timestr+'_splits.npy',split_dict,allow_pickle=True)
 pp = PdfPages(timestr_pdf)
 
 # Prepare arrays for plotting
 f1_ba_arr = np.array(exp_dict['f1_ba'])
-f1_diff_arr = f1_ba_arr[:,1]-f1_ba_arr[:,0]
+f1_diff_arr = (f1_ba_arr[:,1]-f1_ba_arr[:,0])/(1-f1_ba_arr[:,0])
 
 # Plot F1 score before vs after
 fig1=plt.figure()
@@ -177,7 +176,8 @@ fig1=plt.figure()
 plt.scatter(exp_dict['snr'],f1_diff_arr,s=.2)
 for i in range(f1_ba_arr.shape[0]):
     plt.text(exp_dict['snr'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
-plt.ylabel('dF1')
+plt.axhline(y=0,c='k',ls='--')
+plt.ylabel('dF1 (fraction of possible +dF1)')
 plt.xlabel('SNR')
 fig1.tight_layout()
 plt.draw()
@@ -188,7 +188,8 @@ fig1=plt.figure()
 plt.scatter(exp_dict['nspikes'],f1_diff_arr,s=.2)
 for i in range(f1_ba_arr.shape[0]):
     plt.text(exp_dict['nspikes'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
-plt.ylabel('dF1')
+plt.axhline(y=0,c='k',ls='--')
+plt.ylabel('dF1 (fraction of possible +dF1)')
 plt.xlabel('Number of spikes (count)')
 fig1.tight_layout()
 plt.draw()

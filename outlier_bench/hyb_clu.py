@@ -44,18 +44,19 @@ class hyb_clu(object):
         hyb_clu_nspks = self.clu_counts[self.clu_hid]
         self.exp_clusts = []
         for x in self.clu_counts.index[0:5]:
-	        c_clu_spikes = self.m.get_cluster_spikes(x)
-        	if len(c_clu_spikes)>500:
-	            ref_idxs = np.where(self.matched_clus==x)
-	            art_clu_spikes = self.hyb_idxs[ref_idxs]
-	            print('\tArtifical cluster (based on %d): Associated with hybrid cluster %d, contains %2.3f %% artificial spikes (%d/%d artificial)'%(self.clu_id,x,(self.clu_counts[x]/len(c_clu_spikes))*100,self.clu_counts[x],len(c_clu_spikes)))
-	            matched_hyb = (np.in1d(c_clu_spikes,art_clu_spikes))
-	            hyb_spikes = c_clu_spikes[matched_hyb]
-	            real_spikes = c_clu_spikes[np.logical_not(matched_hyb)]
-	            idx_match_pct = (sum(matched_hyb)/len(art_clu_spikes))
-	            hyb_frac = (self.clu_counts[x]/len(c_clu_spikes))
-	            #print('\t\t%2.3f %% (%d/%d) artificial spikes matched by index in hybrid (for confirmation)'%(idx_match_pct*100,sum(matched_hyb),len(art_clu_spikes)))
-self.exp_clusts.append({'id':x,'hyb':hyb_spikes,'real':real_spikes,'art_pct':hyb_frac,'best_c':self.c.get_best_channel(x)})        return
+            c_clu_spikes = self.m.get_cluster_spikes(x)
+            if len(c_clu_spikes)>500:
+                ref_idxs = np.where(self.matched_clus==x)
+                art_clu_spikes = self.hyb_idxs[ref_idxs]
+                print('\tArtifical cluster (based on %d): Associated with hybrid cluster %d, contains %2.3f %% artificial spikes (%d/%d artificial)'%(self.clu_id,x,(self.clu_counts[x]/len(c_clu_spikes))*100,self.clu_counts[x],len(c_clu_spikes)))
+                matched_hyb = (np.in1d(c_clu_spikes,art_clu_spikes))
+                hyb_spikes = c_clu_spikes[matched_hyb]
+                real_spikes = c_clu_spikes[np.logical_not(matched_hyb)]
+                idx_match_pct = (sum(matched_hyb)/len(art_clu_spikes))
+                hyb_frac = (self.clu_counts[x]/len(c_clu_spikes))
+                #print('\t\t%2.3f %% (%d/%d) artificial spikes matched by index in hybrid (for confirmation)'%(idx_match_pct*100,sum(matched_hyb),len(art_clu_spikes)))
+                self.exp_clusts.append({'id':x,'hyb':hyb_spikes,'real':real_spikes,'art_pct':hyb_frac,'best_c':self.c.get_best_channel(x)})
+        return
     
     def merge_hybrid(self):
         #Prepare to merge all the small clusters which contain artificial spikes together

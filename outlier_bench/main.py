@@ -10,7 +10,10 @@ import os
 import importlib
 from matplotlib import cm
 import sys
-
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
 # Load raw traces for calculation of SNR
 trace_args = ['sample_rate', 'n_channels_dat', 'dtype', 'offset']
 trace_vals = [[25000],[64],[np.int16],[0]]
@@ -50,10 +53,13 @@ hyb_spike_times = np.load(hyb_data_dir+r'\spike_times.npy')
 
 diffs = []
 idxs = []
-exp_dict = {}
+try:
+    del exp_dict
+except:
+    exp_dict = {}
 run_ct = 0
-
-exp_dict.update({'snr':[],'nspikes':[],'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[]})
+n_minima = 6
+exp_dict.update({'snr':[],'nspikes':[],'fdr_ba':[],'fdr_onstep':[],'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[],'fdr_idxs':[]})
 gt_clus = gt_clus
 
 if 'hyb_clu_list' in dir():
@@ -61,14 +67,17 @@ if 'hyb_clu_list' in dir():
     if True:
         for i,clu in enumerate(gt_clus):
             for x in hyb_clu_list[i].exp_clusts:
-                prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = outlier.run_exp_outlier(x,s,m,c)
-                if f1_onstep:
+                prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = outlier.run_exp_outlier(x,s,m,c,n_minima)
+                if fdr_onstep:
+                    exp_dict['fdr_onstep'].append(fdr_onstep)
                     exp_dict['f1_onstep'].append(f1_onstep)
                     exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
                     exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
+                    exp_dict['fdr_ba'].append(fdr_ba)
                     exp_dict['f1_ba'].append(f1_ba)
+                    exp_dict['fdr_idxs'].append(fdr_min_idxs)
                     # Primary channel signal for this cluster
                     trace = traces[:,x['best_c']]
                     n_est = (noise_est(trace))
@@ -78,12 +87,9 @@ if 'hyb_clu_list' in dir():
                     all_spikes.extend(x['hyb'][:])
                     all_spikes.extend(x['real'][:])
                     exp_dict['nspikes'].append(len(all_spikes))
-
-                    waveform = m.get_waveforms(all_spikes,[x['best_c']])
-                    mean_waveform = np.mean(waveform,axis=1)
+                    waveform = m.get_cluster_spike_waveforms(x['id'])[:,:,0]
+                    mean_waveform = np.mean(waveform,axis=0)
                     s_est = np.max(np.abs(mean_waveform))
-                    
-                    SNR = (s_est/n_est)
                     
                     print('SNR: %f'%SNR)
                     exp_dict['snr'].append(SNR)
@@ -103,87 +109,137 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-                prec_rem_onstep,f1_onstep,cum_n_outs_onstep,f1_ba = outlier.run_exp_outlier(x,s,m,c)
-                if f1_onstep:
-                    exp_dict['f1_onstep'].append(f1_onstep)
-                    exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
-                    exp_dict['cum_nouts'].append(cum_n_outs_onstep)
-                    exp_dict['art%'].append(x['art_pct'])
-                    exp_dict['hyb_clu'].append(x['id'])
-                    exp_dict['f1_ba'].append(f1_ba)
-                    # Primary channel signal for this cluster
-                    trace = traces[:,x['best_c']]
-                    n_est = (noise_est(trace))
-                    
-                    # Get spike waveforms
-                    all_spikes = []
-                    all_spikes.extend(x['hyb'][:])
-                    all_spikes.extend(x['real'][:])
-                    exp_dict['nspikes'].append(len(all_spikes))
+            prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = outlier.run_exp_outlier(x,s,m,c,n_minima)
+            if fdr_onstep:
+                exp_dict['fdr_onstep'].append(fdr_onstep)
+                exp_dict['f1_onstep'].append(f1_onstep)
+                exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
+                exp_dict['cum_nouts'].append(cum_n_outs_onstep)
+                exp_dict['art%'].append(x['art_pct'])
+                exp_dict['hyb_clu'].append(x['id'])
+                exp_dict['fdr_ba'].append(fdr_ba)
+                exp_dict['f1_ba'].append(f1_ba)
+                exp_dict['fdr_idxs'].append(fdr_min_idxs)
 
-                    waveform = m.get_waveforms(all_spikes,[x['best_c']])
-                    mean_waveform = np.mean(waveform,axis=1)
-                    s_est = np.max(np.abs(mean_waveform))
-                    
-                    SNR = (s_est/n_est)
-                    
-                    print('SNR: %f'%SNR)
-                    exp_dict['snr'].append(SNR)
+
+                # Primary channel signal for this cluster
+                trace = traces[:,x['best_c']]
+                n_est = (noise_est(trace))
+
+                # Get spike waveforms
+                all_spikes = []
+                all_spikes.extend(x['hyb'][:])
+                all_spikes.extend(x['real'][:])
+                exp_dict['nspikes'].append(len(all_spikes))
+                waveform = m.get_cluster_spike_waveforms(x['id'])[:,:,0]
+                mean_waveform = np.mean(waveform,axis=0)
+                s_est = np.max(np.abs(mean_waveform))
+                
+                # Maybe plot mean waveform labeled with noise estimate line?
+                # Plus all traces with low opacity?
+
+                SNR = (s_est/n_est)
+                
+                print('SNR: %f'%SNR)
+                exp_dict['snr'].append(SNR)
 
 timestr_pdf = timestr+".pdf"
 timestr_dict_npy = timestr+"_res.npy"
-
-np.save(timestr_dict_npy,exp_dict)
+plt.close('all')
+np.save(timestr_dict_npy,exp_dict,allow_pickle=True)
 
 pp = PdfPages(timestr_pdf)
 
 f1_ba_arr = np.array(exp_dict['f1_ba'])
-f1_diff_arr = f1_ba_arr[:,1]-f1_ba_arr[:,0]
+fdr_ba_arr = np.array(exp_dict['fdr_ba'])
+pdf1_arr = np.zeros(f1_ba_arr.shape)
+
+for i in range(f1_ba_arr.shape[0]):
+    temp_f1_arr = f1_ba_arr[i,:]
+    pdf1_arr[i,:] = np.array([(x-temp_f1_arr[0])/(1-temp_f1_arr[0]) for x in temp_f1_arr])
+
+# Get cmap
+cmap = plt.get_cmap('plasma').colors
+cmap = [cmap[x] for x in np.linspace(0,252,n_minima).astype(int)]
+cmap.reverse()
+labels = ['']
+ext_lbls = [str(x+1) for x in range(n_minima)]
+labels.extend(ext_lbls)
 
 # Plot before F1 vs after F1
 fig1=plt.figure()
-plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,1],s=.2)
+plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.15)
+for x in range(n_minima): 
+    plt.scatter(f1_ba_arr[:,0],f1_ba_arr[:,x],c=cmap[x],s=7)
 for i in range(f1_ba_arr.shape[0]):
-    plt.text(f1_ba_arr[i,0],f1_ba_arr[i,1]*1.0,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
-plt.plot(np.linspace(0,np.max(f1_ba_arr.flatten()),100),np.linspace(0,np.max(f1_ba_arr.flatten()),100),'k--',lw=.1)
+    plt.text(f1_ba_arr[i,0]*.998,f1_ba_arr[i,0]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
 plt.ylabel('F1 After')
 plt.xlabel('F1 Before')
+plt.legend(labels)
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
+
+# Plot before FDR vs after FDR
+fig1=plt.figure()
+plt.plot(np.linspace(0,np.max(fdr_ba_arr.flatten()),100),np.linspace(0,np.max(fdr_ba_arr.flatten()),100),'k--',lw=.15)
+for x in range(n_minima): 
+    plt.scatter(fdr_ba_arr[:,0],fdr_ba_arr[:,x],c=cmap[x],s=7)
+for i in range(fdr_ba_arr.shape[0]):
+    plt.text(fdr_ba_arr[i,0]*.998,fdr_ba_arr[i,0]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+plt.ylabel('FDR After')
+plt.xlabel('FDR Before')
+plt.legend(labels)
 fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())
 
 # Plot SNR vs dF1
 fig1=plt.figure()
-plt.scatter(exp_dict['snr'],f1_diff_arr,s=.2)
-for i in range(f1_ba_arr.shape[0]):
-    plt.text(exp_dict['snr'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
-plt.ylabel('dF1')
+for x in range(n_minima): 
+    plt.scatter(exp_dict['snr'],pdf1_arr[:,x],c=cmap[x],s=7)
+for i in range(pdf1_arr.shape[0]):
+    plt.text(exp_dict['snr'][i]*.998,pdf1_arr[i,0]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+
+plt.axhline(y=0,c='k',ls='--')
+plt.ylabel('dF1 (fraction of possible +dF1)')
 plt.xlabel('SNR')
+plt.legend(labels)
 fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())
 
 # Plot nspikes vs dF1
 fig1=plt.figure()
-plt.scatter(exp_dict['nspikes'],f1_diff_arr,s=.2)
-for i in range(f1_ba_arr.shape[0]):
-    plt.text(exp_dict['nspikes'][i]*1.002,f1_diff_arr[i]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
-plt.ylabel('dF1')
+for x in range(n_minima): 
+    plt.scatter(exp_dict['nspikes'],pdf1_arr[:,x],c=cmap[x],s=7)
+for i in range(pdf1_arr.shape[0]):
+    plt.text(exp_dict['nspikes'][i]*.998,pdf1_arr[i,0]*1.002,'%d'%exp_dict['hyb_clu'][i],size='xx-small')
+
+plt.axhline(y=0,c='k',ls='--')
+plt.ylabel('dF1 (fraction of possible +dF1)')
 plt.xlabel('Number of spikes (count)')
+plt.legend(labels)
 fig1.tight_layout()
 plt.draw()
 pp.savefig(plt.gcf())
 
 for i,clu in enumerate(exp_dict['hyb_clu']):
-    max_idx = np.argmax(exp_dict['f1_onstep'][i])
     fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey=False,sharex=False)
-    axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i])
-    axes[0].plot(exp_dict['cum_nouts'][i][max_idx],exp_dict['f1_onstep'][i][max_idx],'ro')
+    axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['fdr_onstep'][i])
+    ax2 = axes[0].twinx()
+    ax2.plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i],'r-')
+    ax2.legend(['F1'],loc=1)
+    ax2.set_ylabel('F1 Score')
+    axes[0].legend(['FDR'],loc=2)
+    for x,d in enumerate(exp_dict['fdr_idxs'][i]):
+        axes[0].plot(exp_dict['cum_nouts'][i][d],exp_dict['fdr_onstep'][i][d],c=cmap[x],marker='o')
     axes[0].set_xlabel('N spikes removed (count)')
-    axes[0].set_ylabel('F1 score')
+    axes[0].set_ylabel('False discovery rate')
     axes[0].set_title('Unit %d'%(clu))
     axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['prec_rem_onstep'][i])
-    axes[1].plot(exp_dict['cum_nouts'][i][max_idx],exp_dict['prec_rem_onstep'][i][max_idx],'ro')
+    for x,d in enumerate(exp_dict['fdr_idxs'][i]):
+        axes[1].plot(exp_dict['cum_nouts'][i][d],exp_dict['prec_rem_onstep'][i][d],c=cmap[x],marker='o')
     axes[1].set_xlabel('N spikes removed (count)')
     axes[1].set_ylabel('Precision of removed spikes')
     axes[1].set_title('Unit %d'%(clu))
