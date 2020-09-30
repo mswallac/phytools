@@ -1,19 +1,20 @@
+
+from matplotlib.colors import ListedColormap, BoundaryNorm
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.collections import LineCollection
 from phylib.io.traces import get_ephys_reader
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from hyb_clu import hyb_clu
 import numpy as np
 import pandas as pd
+import importlib
 import outlier
 import time
+from glob import glob
 import os
-import importlib
-from matplotlib import cm
 import sys
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-from matplotlib.colors import ListedColormap, BoundaryNorm
+
 # Load raw traces for calculation of SNR
 trace_args = ['sample_rate', 'n_channels_dat', 'dtype', 'offset']
 trace_vals = [[25000],[64],[np.int16],[0]]
@@ -25,6 +26,10 @@ traces = traces._get_part(pbounds,0)
 
 # Noise estimate for spikesorting data
 noise_est = lambda data : np.median((np.abs(data))/0.6745)
+
+# Load human performances
+hperfs = glob('hperf_*')
+hperf_ids = [int(x.split('_')[1].split('.')[0]) for x in hperfs]
 
 # Replace stdout with text file.
 timestr = time.strftime("outlier_%Y%m%d-%H%M%S")
@@ -55,17 +60,28 @@ diffs = []
 idxs = []
 try:
     del exp_dict
+    exp_dict = {}
 except:
     exp_dict = {}
+
 run_ct = 0
 n_minima = 6
 exp_dict.update({'snr':[],'nspikes':[],'fdr_ba':[],'fdr_onstep':[],'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[],'fdr_idxs':[]})
-gt_clus = gt_clus
 
+lfc = [274]
+useclus = True
+
+if useclus:
+    clus = np.nonzero(np.in1d(gt_clus,lfc))[0]
+    gt_clus = np.array(gt_clus)[clus]
+else:
+    gt_clus = np.array(gt_clus)[:]
+
+hybclu_structs = []
 if 'hyb_clu_list' in dir():
-    #if len(hyb_clu_list)==len(gt_clus):
-    if True:
+    if len(hyb_clu_list)>=len(gt_clus):
         for i,clu in enumerate(gt_clus):
+            print('GT Cluster %d'%clu)
             for x in hyb_clu_list[i].exp_clusts:
                 prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = outlier.run_exp_outlier(x,s,m,c,n_minima)
                 if fdr_onstep:
@@ -90,14 +106,19 @@ if 'hyb_clu_list' in dir():
                     waveform = m.get_cluster_spike_waveforms(x['id'])[:,:,0]
                     mean_waveform = np.mean(waveform,axis=0)
                     s_est = np.max(np.abs(mean_waveform))
-                    
-                    print('SNR: %f'%SNR)
+                
+                    # Maybe plot mean waveform labeled with noise estimate line?
+                    # Plus all traces with low opacity?
+
+                    SNR = (s_est/n_est)
                     exp_dict['snr'].append(SNR)
+                    hybclu_structs.append(x)
     else:
         print('Old data does not match current # of clusters!')
 else:
     hyb_clu_list = []
     for i,clu in enumerate(gt_clus):
+        print('GT Cluster %d'%clu)
         hfact_idx = np.where(true_units == clu)
         true_hyb_spike_times = np.asarray(art_units['timestep'])[hfact_idx]
         chans = np.unique(center_channels[hfact_idx])
@@ -120,6 +141,7 @@ else:
                 exp_dict['fdr_ba'].append(fdr_ba)
                 exp_dict['f1_ba'].append(f1_ba)
                 exp_dict['fdr_idxs'].append(fdr_min_idxs)
+                hybclu_structs.append(x)
 
 
                 # Primary channel signal for this cluster
@@ -139,8 +161,6 @@ else:
                 # Plus all traces with low opacity?
 
                 SNR = (s_est/n_est)
-                
-                print('SNR: %f'%SNR)
                 exp_dict['snr'].append(SNR)
 
 timestr_pdf = timestr+".pdf"
@@ -225,24 +245,47 @@ plt.draw()
 pp.savefig(plt.gcf())
 
 for i,clu in enumerate(exp_dict['hyb_clu']):
-    fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey=False,sharex=False)
-    axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['fdr_onstep'][i])
-    ax2 = axes[0].twinx()
-    ax2.plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i],'r-')
-    ax2.legend(['F1'],loc=1)
-    ax2.set_ylabel('F1 Score')
-    axes[0].legend(['FDR'],loc=2)
-    for x,d in enumerate(exp_dict['fdr_idxs'][i]):
-        axes[0].plot(exp_dict['cum_nouts'][i][d],exp_dict['fdr_onstep'][i][d],c=cmap[x],marker='o')
-    axes[0].set_xlabel('N spikes removed (count)')
-    axes[0].set_ylabel('False discovery rate')
-    axes[0].set_title('Unit %d'%(clu))
-    axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['prec_rem_onstep'][i])
-    for x,d in enumerate(exp_dict['fdr_idxs'][i]):
-        axes[1].plot(exp_dict['cum_nouts'][i][d],exp_dict['prec_rem_onstep'][i][d],c=cmap[x],marker='o')
-    axes[1].set_xlabel('N spikes removed (count)')
-    axes[1].set_ylabel('Precision of removed spikes')
-    axes[1].set_title('Unit %d'%(clu))
+    if clu in hperf_ids:
+        fig,axes=plt.subplots(nrows=2,ncols=2,figsize=(10,6),sharey='row',sharex=True)
+        axes[0][0].plot(exp_dict['cum_nouts'][i],exp_dict['fdr_onstep'][i])
+        for x,d in enumerate(exp_dict['fdr_idxs'][i]):
+            axes[0][0].plot(exp_dict['cum_nouts'][i][d],exp_dict['fdr_onstep'][i][d],c=cmap[x],marker='o')
+        axes[0][0].set_xlabel('N spikes removed (count)')
+        axes[0][0].set_ylabel('False discovery rate')
+        axes[0][0].set_title('Unit %d (auto.)'%(clu))
+        
+        axes[1][0].plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i])
+        axes[1][0].set_xlabel('N spikes removed (count)')
+        axes[1][0].set_ylabel('F1 Score')
+        axes[1][0].set_title('Unit %d (auto.)'%(clu))
+        hclust = hybclu_structs[i]
+        hperf = np.load('hperf_%d.npy'%clu,allow_pickle=True).item()
+        prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba=outlier.human_bench(hclust,s,m,c,hperf)
+        axes[0][1].plot(cum_n_outs_onstep,fdr_onstep)
+        for x,d in enumerate(fdr_min_idxs):
+            axes[0][1].plot(cum_n_outs_onstep[d],fdr_onstep[d],c=cmap[x],marker='o')
+        axes[0][1].set_xlabel('N spikes removed (count)')
+        axes[0][1].set_ylabel('False discovery rate')
+        axes[0][1].set_title('Unit %d (human)'%(clu))
+
+        axes[1][1].plot(cum_n_outs_onstep,f1_onstep)
+        axes[1][1].set_xlabel('N spikes removed (count)')
+        axes[1][1].set_ylabel('F1 Score')
+        axes[1][1].set_title('Unit %d (human)'%(clu))
+    else:
+        fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey='col',sharex=True)
+        axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['fdr_onstep'][i])
+        for x,d in enumerate(exp_dict['fdr_idxs'][i]):
+            axes[0].plot(exp_dict['cum_nouts'][i][d],exp_dict['fdr_onstep'][i][d],c=cmap[x],marker='o')
+        axes[0].set_xlabel('N spikes removed (count)')
+        axes[0].set_ylabel('False discovery rate')
+        axes[0].set_title('Unit (auto.) %d'%(clu))
+        axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i])
+        axes[1].set_xlabel('N spikes removed (count)')
+        axes[1].set_ylabel('F1 Score')
+        axes[1].set_title('Unit %d (auto.)'%(clu))
+
+
     fig.tight_layout()
     plt.draw()
     pp.savefig(plt.gcf())

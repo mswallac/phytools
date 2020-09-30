@@ -12,41 +12,61 @@ nchans = 6
 min_nspikes = 1000
 max_ntimeseg = 10
 wavewin = slice(0,82)
-
-def get_nchunks():
-    nchunks = 50
-    return nchunks
+n_minima = 6
 
 def load_clust_data(cid,m,c):
     cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
-    n_to_rem = int(np.round(nspikes*.50))
+    n_to_rem = int(np.round(nspikes*(1/3)))
     use_keys = []
     #use_inds = np.array([2,3,4,5,8,11])
-    use_inds = np.arange(0,11)
+    use_inds = np.arange(2,12)
     feats_keys = list(mstdict.keys())
     for i in use_inds:
         use_keys.append(feats_keys[i])
     res = (cid,spikes,nspikes,chan,mstdict,splits)
-    print(use_keys)
     return res,n_to_rem,use_keys
+
+def human_bench(exp_clust,s,m,c,hperf):
+    cid = exp_clust['id']
+    res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
+    cid,spikes,nspikes,chan,mstdict,splits = res
+    real_spks = exp_clust['real']
+    hyb_spks = exp_clust['hyb']
+    art_pct = exp_clust['art_pct']
+    outs_by_iter = hperf['outs_per_iter']
+    outs = []
+    for x in outs_by_iter:
+        outs.extend(x)
+
+    prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes,n_minima)
+    return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
 
 def run_exp_outlier(exp_clust,s,m,c,n_minima):
     cid = exp_clust['id']
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
-    outs = []
-    outs_by_iter = []
     iters = 0
-    if (0.10 < art_pct < 0.98):
+    if (0.10 < art_pct):
         res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
-
-        while len(outs) < n_to_rem and iters<1500:
-            splits,iterouts=find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict)
+        outs=[]
+        outs_by_iter = []
+        thresh = 5.6
+        d_thr = 0.1
+        dt_tmax = int(thresh/d_thr)
+        dt_ticks = 0
+        minspikes_iter = 1
+        # Remove iteration on this layer and make it all happen within find_out
+        while (len(outs) < n_to_rem) and (iters<250 or dt_ticks<dt_tmax):
+            splits,obi=find_out(thresh,outs,n_to_rem,splits,spikes,feats_keys,mstdict)
             iters+=1
-            outs_by_iter.append(iterouts)
-
+            if len(obi)<=minspikes_iter:
+                thresh-=d_thr
+                dt_ticks+=1
+                outs_by_iter.extend(obi)
+            else:
+                outs_by_iter.extend(obi)
         print('Cluster %d ran for %d iterations, removing %d of %d spikes in search.'%(cid,iters,len(outs),nspikes))
 
         # split code
@@ -58,6 +78,15 @@ def run_exp_outlier(exp_clust,s,m,c,n_minima):
 
 def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
     n_art = len(hyb_spks)
+    # Calculate performance metrics on orig cluster
+    TP = sum(np.in1d(spikes,hyb_spks))
+    FP = sum(np.in1d(spikes,real_spks))
+    FN = n_art-TP
+    if FP/(TP+FP) > 0.5:
+        temp_spks = real_spks
+        real_spks = hyb_spks
+        hyb_spks = temp_spks
+        n_art = len(hyb_spks)
     # Calculate performance metrics on orig cluster
     TP = sum(np.in1d(spikes,hyb_spks))
     FP = sum(np.in1d(spikes,real_spks))
@@ -75,7 +104,6 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
 
     n_outs_onstep = [len(x) for x in outs_each_iter]
     cum_n_outs_onstep = np.cumsum(n_outs_onstep)
-
     for i,out_onstep in enumerate(outs_each_iter):
         # Keeping track of which spikes we have excluded
         cum_outs.extend(out_onstep)
@@ -87,7 +115,6 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
         FP = sum(np.in1d(cum_outs,hyb_spks))
         TP = sum(np.in1d(cum_outs,real_spks))
         assert (TP+FP) == len(cum_outs)
-
         # Calculate what the precision was in removing spikes which are artifical
         removed_prec = (TP/(TP+FP))
         prec_rem_onstep.append(removed_prec)
@@ -110,24 +137,27 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
 
     n_minima = nmin
     fdr_min_idxs = []
-    for x in range(n_minima):
-        idx1 = np.round(x*(len(fdr_onstep)/n_minima)).astype(int)
-        idx2 = np.round((x+1)*(len(fdr_onstep)/n_minima)).astype(int)
-        temp_fdr = fdr_onstep[idx1:idx2]
-        min_idx = idx1+np.argmin(temp_fdr)
-        fdr_min_idxs.append(min_idx)
-        fdr_ba.append(fdr_onstep[min_idx])
-        f1_ba.append(f1_onstep[min_idx])
+    if len(fdr_onstep)>n_minima:
+        for x in range(n_minima):
+            idx1 = np.floor(x*(len(fdr_onstep)/n_minima)).astype(int)
+            idx2 = np.ceil((x+1)*(len(fdr_onstep)/n_minima)).astype(int)
+            temp_fdr = fdr_onstep[idx1:idx2]
+            min_idx = idx1+np.argmin(temp_fdr)
+            fdr_min_idxs.append(min_idx)
+            fdr_ba.append(fdr_onstep[min_idx])
+            f1_ba.append(f1_onstep[min_idx])
         
     return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
 
-def time_split(nchunks,splits,nspikes,spikes):
-    splits = {}
-    if nchunks!=1:
-        for i in np.arange(nchunks):
-            splits.update({i+1: spikes[(i*nspikes)//nchunks:((i+1)*nspikes)//nchunks]})
+def time_split(splits,nspikes,spikes):
+    if nspikes>=5000:
+        nchunks = 50
     else:
-        splits.update({1: spikes})
+        nchunks = 25
+
+    splits = {}
+    for i in np.arange(nchunks):
+        splits.update({i+1: spikes[(i*nspikes)//nchunks:((i+1)*nspikes)//nchunks]})
     return splits
 
 
@@ -135,21 +165,19 @@ def get_spikes(cid,m,c):
     splits = {}
     spikes = m.get_cluster_spikes(cid)
     nspikes = len(spikes)
-
-    splits = time_split(get_nchunks(),splits,nspikes,spikes)
+    splits = time_split(splits,nspikes,spikes)
 
     try:
         channel = c.selection.channel_id
     except AttributeError:
         channel = c.get_best_channels(cid[0])[0]
 
-    av=(c._get_amplitude_functions())['raw']
-    data=av(spikes, channel_id=channel, channel_ids=np.array(channel), load_all=True, first_cluster=cid[0])
-
+    
     cid = cid[0]
     chan = c.get_best_channels(cid)[0:5]
+    spike_amps = c.get_spike_raw_amplitudes(spikes,chan[0])
+    spike_template_amps = c.get_spike_template_amplitudes(spikes)
     spike_times = m.spike_times[spikes]
-    spike_amps = data
     features = m.get_features(spikes,chan)[:,:,:]
 
     temp_w=[]
@@ -165,6 +193,8 @@ def get_spikes(cid,m,c):
     temp_f1.extend(features[:,:,1])
     temp_f2.extend(features[:,:,2])
     mstdict.update({'Time': np.array(temp_t)})
+    mstdict.update({'Amplitude': spike_amps})
+    mstdict.update({'Template': spike_template_amps})
     for i,d in enumerate(chan):
         mstdict.update({"PC0_C"+str(d): np.array(temp_f0)[:,i]})
         mstdict.update({"PC1_C"+str(d): np.array(temp_f1)[:,i]})
@@ -173,11 +203,10 @@ def get_spikes(cid,m,c):
     return (cid,spikes,nspikes,chan,mstdict,splits)
 
 
-def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
-    keys = range(1,1+len(splits))
-    n_excl_per_iter = int(n_to_rem/(50*len(keys)))
-    n_excl_per_iter = 2 if n_excl_per_iter<=1 else n_excl_per_iter
-    outs_each_iter = []
+def find_out(thresh,outs,n_to_rem,splits,spikes,feats_keys,mstdict):
+    nchunks=len(splits)
+    keys = range(1,nchunks+1)
+    outs_by_iter = []
     for d in keys:
         which = []
         train = []
@@ -203,18 +232,10 @@ def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
                         to_add = [x for x in keys[0:(end-beg)] if x != d]
                     for i,x in enumerate(to_add):
                         which.extend(splits[x])
-            
-            unique_which,unsortinds = np.unique(which,return_index=True)
-            which = unique_which[np.argsort(unsortinds)] 
-            
-            # Checking spike / index mapping
-            which_inds = (np.in1d(spikes,which))
-            assert sum(which_inds)==len(which)
-            assert np.array_equal(spikes[which_inds],which)
-            
-            # Checking spike / index mapping pt. 2
-            which_inds = np.nonzero(which_inds)[0]
-            assert np.array_equal(spikes[which_inds],which)
+
+            which_inds = np.nonzero(np.in1d(spikes,which))[0]
+            assert len(which_inds)==len(which)
+            assert np.array_equal(np.sort(spikes[which_inds]),np.sort(which))
 
             # Create data train for use in outlier rejection algorithm
             for i,fk in enumerate(feats_keys):
@@ -225,7 +246,7 @@ def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
             mpt = np.median(train, axis=0)
             cmat = np.transpose(train)
             d1,d2 = cmat.shape
-            cmat = cmat.astype(np.float32)+0.00000001*np.random.rand(d1,d2)
+            cmat = cmat.astype(np.float32)+0.0000000001*np.random.rand(d1,d2)
             cmat = np.cov(cmat)
             cmati = np.linalg.inv(cmat)
             dist = []
@@ -233,22 +254,15 @@ def find_out(n_to_rem,splits,outs,spikes,feats_keys,mstdict):
                 pt = train[i,:]
                 dist.append(mahalanobis(pt,mpt,cmati))
             dist=np.abs(np.array(dist))
+            dist_bool = np.nonzero([x>thresh for x in dist])[0]
+            out_spikes = spikes[which_inds[dist_bool]]
+            out_in_cnk = np.nonzero(np.in1d(out_spikes,cnk))[0]
+            if len(out_in_cnk)>=1:
+                outs.extend(out_spikes[out_in_cnk])
+                outs_by_iter.append(out_spikes[out_in_cnk])
+                a = (splits[d])
+                spike_rem = np.nonzero(np.in1d(a,out_spikes[out_in_cnk]))
+                b = np.delete(a,spike_rem)
+                splits.update({d: (b)})
 
-            cnk_spikes = np.in1d(which,cnk)
-            to_rem_from = dist[cnk_spikes]
-            inds_rem = which_inds[cnk_spikes]
-            assert len(to_rem_from) == len(cnk)
-            
-            outinds = np.flip(np.argsort(to_rem_from))[0:n_excl_per_iter]
-            outinds = spikes[inds_rem[outinds]]
-            assert np.all(np.in1d(outinds,cnk))
-
-            outs.extend(outinds)
-            outs_each_iter.extend(outinds)
-            
-            
-            a = (splits[d])
-            spike_rem = np.nonzero(np.in1d(a,outinds))
-            b = np.delete(a,spike_rem)
-            splits.update({d: (b)})
-            return splits,outs_each_iter
+    return splits,outs_by_iter
