@@ -36,7 +36,7 @@ class hyb_clu(object):
         self.diffs = self.diffs[filt_hyb_spikes]
         
         # Now grab best cluster (containing most of original cluster) keep only spikes within this one
-        self.matched_clus = hyb_spike_clus[self.hyb_idxs][:,0]
+        self.matched_clus = hyb_spike_clus[self.hyb_idxs][:,0] if len(hyb_spike_clus[self.hyb_idxs].shape)>1 else hyb_spike_clus[self.hyb_idxs][:]
         self.clu_counts = pd.Series(data=self.matched_clus)
         self.clu_counts = self.clu_counts.value_counts()
         # TODO: Convert this into % of each cluster that is artificial, use this info to feed into splitter
@@ -45,7 +45,7 @@ class hyb_clu(object):
         self.exp_clusts = []
         for x in self.clu_counts.index[0:5]:
             c_clu_spikes = self.m.get_cluster_spikes(x)
-            if len(c_clu_spikes)>100:
+            if len(c_clu_spikes)>500:
                 ref_idxs = np.where(self.matched_clus==x)
                 art_clu_spikes = self.hyb_idxs[ref_idxs]
                 print('\tArtifical cluster (based on %d): Associated with hybrid cluster %d, contains %2.3f %% artificial spikes (%d/%d artificial)'%(self.clu_id,x,(self.clu_counts[x]/len(c_clu_spikes))*100,self.clu_counts[x],len(c_clu_spikes)))

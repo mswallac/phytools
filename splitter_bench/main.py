@@ -53,8 +53,16 @@ idxs = []
 exp_dict = {'snr':[],'nspikes':[],'gt_clu':[],'hyb_clu':[],'f1_scores':[],'clu_precision':[],'merged':[],'art%':[],'f1_ba':[],'sts':[]}
 run_ct = 0
 nclusts = 15
-gt_clus = gt_clus
 split_dict = {}
+
+lfc = [274]
+useclus = False
+
+if useclus:
+    clus = np.nonzero(np.in1d(gt_clus,lfc))[0]
+    gt_clus = np.array(gt_clus)[clus]
+else:
+    gt_clus = np.array(gt_clus)[:]
 
 if 'hyb_clu_list' in dir():
     if len(hyb_clu_list)==len(gt_clus):
@@ -157,6 +165,24 @@ pp = PdfPages(timestr_pdf)
 # Prepare arrays for plotting
 f1_ba_arr = np.array(exp_dict['f1_ba'])
 f1_diff_arr = (f1_ba_arr[:,1]-f1_ba_arr[:,0])/(1-f1_ba_arr[:,0])
+
+# Plot presets
+xlocs = [1,2]
+xlabels = ['Before', 'After']
+
+# PLOTS TO SHOW CHANGES IN FDR / F1
+
+# F1
+fig1=plt.figure()
+for i,clu in enumerate(exp_dict['hyb_clu']):
+    plt.plot(xlocs,exp_dict['f1_ba'][i]-exp_dict['f1_ba'][i][0],'-ok',alpha = .8)
+plt.title('F1 Before/After automated curation')
+plt.xticks(xlocs,xlabels,fontsize='x-large')
+plt.xlim(0,3)
+plt.ylabel('F1 Score')
+fig1.tight_layout()
+plt.draw()
+pp.savefig(plt.gcf())
 
 # Plot F1 score before vs after
 fig1=plt.figure()

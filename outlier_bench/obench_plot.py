@@ -1,0 +1,139 @@
+from matplotlib.backends.backend_pdf import PdfPages
+# from phylib.io.traces import get_ephys_reader
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import time
+import os
+import importlib
+from matplotlib import cm
+import sys
+from glob import glob
+import outlier
+
+def generate_outlier_plots(exp_dict,pp,hperf_ids,hybclu_structs,s,m,c):
+    # Plot presets
+    #xlocs = [1,2,3]
+    #xlabels = ['Init.','Max F1','Control']
+    #colors = ['black','blue','red']
+    xlocs = [1,2,3]
+    xlabels = ['Init.','Min FDR','Control']
+    colors = ['black','green','red']
+    # PLOTS TO SHOW CHANGES IN FDR / F1
+
+    fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey=False,sharex=True)
+
+    # F1
+    f1_arr = []
+    for i,clu in enumerate(exp_dict['hyb_clu']):
+        axes[0].scatter(xlocs,exp_dict['f1_ba'][i]-exp_dict['f1_ba'][i][0],alpha = 1,c=colors)
+        f1_arr.append(exp_dict['f1_ba'][i]-exp_dict['f1_ba'][i][0])
+        axes[0].plot(xlocs,exp_dict['f1_ba'][i]-exp_dict['f1_ba'][i][0],'k',alpha = .1)
+    f1_arr = np.array(f1_arr)
+    stddev_arr = np.std(f1_arr,axis=0)
+    mean_arr = np.mean(f1_arr,axis=0)
+    axes[0].scatter(xlocs,np.mean(f1_arr,axis=0),800,alpha =1,c=colors,marker='_',linewidth=1.6)
+    for i,x in enumerate(xlocs):
+        axes[0].plot([x,x],[-stddev_arr[i]+mean_arr[i],stddev_arr[i]+mean_arr[i]],'-_',color=colors[i],ms=16,lw=.8)
+    axes[0].set_title('F1 Before/After automated curation')
+    axes[0].set_ylabel('F1 Score')
+    axes[0].set_xlim(0,4)
+    axes[0].set_xticks(xlocs)
+    axes[0].set_xticklabels(xlabels)
+
+    # FDR
+    fdr_arr = []
+    for i,clu in enumerate(exp_dict['hyb_clu']):
+        axes[1].scatter(xlocs,exp_dict['fdr_ba'][i]-exp_dict['fdr_ba'][i][0],alpha = .8,c=colors)
+        fdr_arr.append(exp_dict['fdr_ba'][i]-exp_dict['fdr_ba'][i][0])
+        axes[1].plot(xlocs,exp_dict['fdr_ba'][i]-exp_dict['fdr_ba'][i][0],'k',alpha = .1)
+    fdr_arr = np.array(fdr_arr)
+    stddev_arr = np.std(fdr_arr,axis=0)
+    mean_arr = np.mean(fdr_arr,axis=0)
+    axes[1].scatter(xlocs,np.mean(fdr_arr,axis=0),800,alpha =1,c=colors,marker='_',linewidth=1.6)
+    for i,x in enumerate(xlocs):
+        axes[1].plot([x,x],[-stddev_arr[i]+mean_arr[i],stddev_arr[i]+mean_arr[i]],'-_',color=colors[i],ms=16,lw=.8)
+    axes[1].set_title('FDR Before/After automated curation')
+    axes[1].set_xticks(xlocs)
+    axes[1].set_xticklabels(xlabels)
+    axes[1].set_ylabel('False discovery rate')
+    fig.tight_layout()
+    plt.draw()
+    pp.savefig(plt.gcf())
+
+    # PLOTS TO SHOW CHANGES IN FDR / F1 (w/o 0-baseline)
+
+    fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey=False,sharex=True)
+
+    # F1
+    f1_arr = []
+    for i,clu in enumerate(exp_dict['hyb_clu']):
+        axes[0].scatter(xlocs,exp_dict['f1_ba'][i],alpha = 1,c=colors)
+        f1_arr.append(exp_dict['f1_ba'][i])
+        axes[0].plot(xlocs,exp_dict['f1_ba'][i],'k',alpha = .1)
+    f1_arr = np.array(f1_arr)
+    axes[0].set_title('F1 Before/After automated curation')
+    axes[0].set_ylabel('F1 Score')
+    axes[0].set_xlim(0,4)
+    axes[0].set_xticks(xlocs)
+    axes[0].set_xticklabels(xlabels)
+
+    # FDR
+    fdr_arr = []
+    for i,clu in enumerate(exp_dict['hyb_clu']):
+        axes[1].scatter(xlocs,exp_dict['fdr_ba'][i],alpha = .8,c=colors)
+        fdr_arr.append(exp_dict['fdr_ba'][i])
+        axes[1].plot(xlocs,exp_dict['fdr_ba'][i],'k',alpha = .1)
+    fdr_arr = np.array(fdr_arr)
+    axes[1].set_title('FDR Before/After automated curation')
+    axes[1].set_xticks(xlocs)
+    axes[1].set_xticklabels(xlabels)
+    axes[1].set_ylabel('False discovery rate')
+    fig.tight_layout()
+    plt.draw()
+    pp.savefig(plt.gcf())
+
+    for i,clu in enumerate(exp_dict['hyb_clu']):
+        f1max_idx = exp_dict['f1_max_idx'][i]
+        if clu in hperf_ids:
+            fig,axes=plt.subplots(nrows=2,ncols=2,figsize=(10,6),sharey='row',sharex=True)
+            axes[0][0].plot(exp_dict['cum_nouts'][i],exp_dict['fdr_onstep'][i])
+            axes[0][0].plot(exp_dict['cum_nouts'][i][f1max_idx],exp_dict['fdr_onstep'][i][f1max_idx],'ro')
+            axes[0][0].set_xlabel('N spikes removed (count)')
+            axes[0][0].set_ylabel('False discovery rate')
+            axes[0][0].set_title('Unit %d (auto.)'%(clu))
+            
+            axes[1][0].plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i])
+            axes[1][0].plot(exp_dict['cum_nouts'][i][f1max_idx],exp_dict['f1_onstep'][i][f1max_idx],'ro')
+            axes[1][0].set_xlabel('N spikes removed (count)')
+            axes[1][0].set_ylabel('F1 Score')
+            axes[1][0].set_title('Unit %d (auto.)'%(clu))
+            hclust = hybclu_structs[i]
+            hperf = np.load('hperf_%d.npy'%clu,allow_pickle=True).item()
+            prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba=outlier.human_bench(hclust,s,m,c,hperf)
+            axes[0][1].plot(cum_n_outs_onstep,fdr_onstep)
+            axes[0][1].set_xlabel('N spikes removed (count)')
+            axes[0][1].set_ylabel('False discovery rate')
+            axes[0][1].set_title('Unit %d (human)'%(clu))
+
+            axes[1][1].plot(cum_n_outs_onstep,f1_onstep)
+            axes[1][1].set_xlabel('N spikes removed (count)')
+            axes[1][1].set_ylabel('F1 Score')
+            axes[1][1].set_title('Unit %d (human)'%(clu))
+        else:
+            fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(10,6),sharey='col',sharex=True)
+            axes[0].plot(exp_dict['cum_nouts'][i],exp_dict['fdr_onstep'][i])
+            axes[0].plot(exp_dict['cum_nouts'][i][f1max_idx],exp_dict['fdr_onstep'][i][f1max_idx],'ro')
+            axes[0].set_xlabel('N spikes removed (count)')
+            axes[0].set_ylabel('False discovery rate')
+            axes[0].set_title('Unit (auto.) %d'%(clu))
+            axes[1].plot(exp_dict['cum_nouts'][i],exp_dict['f1_onstep'][i])
+            axes[1].set_xlabel('N spikes removed (count)')
+            axes[1].set_ylabel('F1 Score')
+            axes[1].set_title('Unit %d (auto.)'%(clu))
+
+
+        fig.tight_layout()
+        plt.draw()
+        pp.savefig(plt.gcf())
+    return

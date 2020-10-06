@@ -12,11 +12,10 @@ nchans = 6
 min_nspikes = 1000
 max_ntimeseg = 10
 wavewin = slice(0,82)
-n_minima = 6
 
 def load_clust_data(cid,m,c):
     cid,spikes,nspikes,chan,mstdict,splits = get_spikes([cid],m,c)
-    n_to_rem = int(np.round(nspikes*(1/3)))
+    n_to_rem = int(np.round(nspikes*(1/8)))
     use_keys = []
     #use_inds = np.array([2,3,4,5,8,11])
     use_inds = np.arange(2,12)
@@ -38,16 +37,16 @@ def human_bench(exp_clust,s,m,c,hperf):
     for x in outs_by_iter:
         outs.extend(x)
 
-    prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes,n_minima)
+    prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
     return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
 
-def run_exp_outlier(exp_clust,s,m,c,n_minima):
+def run_exp_outlier(exp_clust,s,m,c):
     cid = exp_clust['id']
     real_spks = exp_clust['real']
     hyb_spks = exp_clust['hyb']
     art_pct = exp_clust['art_pct']
     iters = 0
-    if (0.10 < art_pct):
+    if 0.80 < art_pct < 0.998:
         res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
         cid,spikes,nspikes,chan,mstdict,splits = res
         outs=[]
@@ -71,22 +70,32 @@ def run_exp_outlier(exp_clust,s,m,c,n_minima):
 
         # split code
         
-        prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes,n_minima)
-        return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
+        prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
+        return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba
     else:
         return None,None,None,None,None,None,None
 
-def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
+def rem_random(spikes,n_rem,real_spks,hyb_spks):
     n_art = len(hyb_spks)
-    # Calculate performance metrics on orig cluster
-    TP = sum(np.in1d(spikes,hyb_spks))
-    FP = sum(np.in1d(spikes,real_spks))
+    outs_by_iter = []
+    outs = []
+    while len(outs)<=n_rem:
+        rem = np.random.choice(spikes,10)
+        outs_by_iter.append(rem)
+        outs.extend(rem)
+        spike_rem = np.nonzero(np.in1d(spikes,rem))
+        spikes = np.delete(spikes,spike_rem)
+    # Calculate performance metrics
+    TP = sum(np.in1d(hyb_spks,spikes))
+    FP = sum(np.in1d(real_spks,spikes))
     FN = n_art-TP
-    if FP/(TP+FP) > 0.5:
-        temp_spks = real_spks
-        real_spks = hyb_spks
-        hyb_spks = temp_spks
-        n_art = len(hyb_spks)
+    FDR = FP/(TP+FP)
+    F1 = TP/(TP+0.5*(FP+FN))
+    assert (TP+FP) == len(spikes)
+    return F1,FDR
+
+def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
+    n_art = len(hyb_spks)
     # Calculate performance metrics on orig cluster
     TP = sum(np.in1d(spikes,hyb_spks))
     FP = sum(np.in1d(spikes,real_spks))
@@ -105,49 +114,52 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes,nmin):
     n_outs_onstep = [len(x) for x in outs_each_iter]
     cum_n_outs_onstep = np.cumsum(n_outs_onstep)
     for i,out_onstep in enumerate(outs_each_iter):
-        # Keeping track of which spikes we have excluded
-        cum_outs.extend(out_onstep)
-        cum_outs_onstep.append(cum_outs)
-       
-        # Calculate performance metrics. Since this is for REMOVED spikes--a true positive is removing
-        # a spike that doesnt belong in this case, spikes which don't belong are spikes which were NOT 
-        # inserted by hybridfactory, since hybridfactory clusters are the only ones we know for sure
-        FP = sum(np.in1d(cum_outs,hyb_spks))
-        TP = sum(np.in1d(cum_outs,real_spks))
-        assert (TP+FP) == len(cum_outs)
-        # Calculate what the precision was in removing spikes which are artifical
-        removed_prec = (TP/(TP+FP))
-        prec_rem_onstep.append(removed_prec)
+        if (len(out_onstep)):
+            # Keeping track of which spikes we have excluded
+            cum_outs.extend(out_onstep)
+            cum_outs_onstep.append(cum_outs)
+           
+            # Calculate performance metrics. Since this is for REMOVED spikes--a true positive is removing
+            # a spike that doesnt belong in this case, spikes which don't belong are spikes which were NOT 
+            # inserted by hybridfactory, since hybridfactory clusters are the only ones we know for sure
+            FP = sum(np.in1d(cum_outs,hyb_spks))
+            TP = sum(np.in1d(cum_outs,real_spks))
+            assert (TP+FP) == len(cum_outs)
+            # Calculate what the precision was in removing spikes which are artifical
+            removed_prec = (TP/(TP+FP))
+            prec_rem_onstep.append(removed_prec)
 
-        # Updated list of remaining spikes for other perf. metric
-        remaining_spks = np.delete(spikes,np.nonzero(np.in1d(spikes,cum_outs))[0])
+            # Updated list of remaining spikes for other perf. metric
+            remaining_spks = np.delete(spikes,np.nonzero(np.in1d(spikes,cum_outs))[0])
 
-        # Calculate performance metrics
-        TP = sum(np.in1d(hyb_spks,remaining_spks))
-        FP = sum(np.in1d(real_spks,remaining_spks))
-        FN = n_art-TP
-        FDR = FP/(TP+FP)
-        F1 = TP/(TP+0.5*(FP+FN))
-        assert (TP+FP) == len(remaining_spks)
-        fdr_onstep.append(FDR)
-        f1_onstep.append(F1)
+            # Calculate performance metrics
+            TP = sum(np.in1d(hyb_spks,remaining_spks))
+            FP = sum(np.in1d(real_spks,remaining_spks))
+            FN = n_art-TP
+            FDR = FP/(TP+FP)
+            F1 = TP/(TP+0.5*(FP+FN))
+            assert (TP+FP) == len(remaining_spks)
+            fdr_onstep.append(FDR)
+            f1_onstep.append(F1)
 
     fdr_ba = [before_fdr]
     f1_ba = [before_f1]
+    f1_max_idx = np.argmax(f1_onstep)
+    fdr_min_idx = np.argmin(fdr_onstep)
+    #nspikes_removed = cum_n_outs_onstep[f1_max_idx]
+    nspikes_removed = cum_n_outs_onstep[fdr_min_idx]
+    #fdr_ba.append(fdr_onstep[f1_max_idx])
+    #f1_ba.append(f1_onstep[f1_max_idx])
+    fdr_ba.append(fdr_onstep[fdr_min_idx])
+    f1_ba.append(f1_onstep[fdr_min_idx])
+    rand_f1,rand_fdr = rem_random(spikes,nspikes_removed,real_spks,hyb_spks)
+    fdr_ba.append(rand_fdr)
+    f1_ba.append(rand_f1)
+    
+    # remove random spikes, choose point which corresponds to this idx to benchmark random with
 
-    n_minima = nmin
-    fdr_min_idxs = []
-    if len(fdr_onstep)>n_minima:
-        for x in range(n_minima):
-            idx1 = np.floor(x*(len(fdr_onstep)/n_minima)).astype(int)
-            idx2 = np.ceil((x+1)*(len(fdr_onstep)/n_minima)).astype(int)
-            temp_fdr = fdr_onstep[idx1:idx2]
-            min_idx = idx1+np.argmin(temp_fdr)
-            fdr_min_idxs.append(min_idx)
-            fdr_ba.append(fdr_onstep[min_idx])
-            f1_ba.append(f1_onstep[min_idx])
         
-    return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
+    return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba
 
 def time_split(splits,nspikes,spikes):
     if nspikes>=5000:
