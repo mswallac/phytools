@@ -9,8 +9,8 @@ import pandas as pd
 
 
 nchans = 6
-min_nspikes = 1000
-max_ntimeseg = 10
+min_nspikes = 300
+max_ntimeseg = 5
 wavewin = slice(0,82)
 
 def load_clust_data(cid,m,c):
@@ -37,8 +37,45 @@ def human_bench(exp_clust,s,m,c,hperf):
     for x in outs_by_iter:
         outs.extend(x)
 
-    prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
-    return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
+    fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
+    return fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idxs,f1_ba
+
+def isi_fdr_comp(exp_clust,s,m,c):
+    cid = exp_clust['id']
+    res,n_to_rem,feats_keys = load_clust_data(cid,m,c)
+    cid,spikes,nspikes,chan,mstdict,splits = res
+    outs_by_iter = np.load('hperf_%d.npy'%cid,allow_pickle=True).item()
+    outs_by_iter = outs_by_iter['outs_per_iter']
+    real_spks = exp_clust['real']
+    hyb_spks = exp_clust['hyb']
+    art_pct = exp_clust['art_pct']
+    spike_times = mstdict['Time']
+
+    isi_rem = []
+    fp_rem = []
+    tp_rem = []
+    cum_outs = []
+    isi_all_arr = []
+    remaining_spks = spikes
+    for i,x in enumerate(outs_by_iter):
+        cum_outs.extend(x)
+        out_idxs = np.nonzero(np.in1d(remaining_spks,cum_outs))[0]
+        remaining_spks = np.delete(remaining_spks,out_idxs)
+        spike_times = np.delete(spike_times,out_idxs)
+        remaining_spk_idxs = np.nonzero(np.in1d(remaining_spks,spikes))[0]
+        rem_spike_times = np.diff(spike_times[remaining_spk_idxs])
+        isi_all_arr.append(rem_spike_times)
+        hist,t = np.histogram(rem_spike_times,bins=51,range=(0.0,.220))
+        hist_count = sum(hist)
+        TP = sum(np.in1d(remaining_spks,hyb_spks))
+        FP = sum(np.in1d(remaining_spks,real_spks))
+        isi_rem.append(hist_count)
+        fp_rem.append(FP)
+        tp_rem.append(TP)
+        assert TP+FP == len(remaining_spks)
+        assert len(remaining_spks)+len(cum_outs) == len(spikes)
+
+    return isi_rem,fp_rem,tp_rem,isi_all_arr
 
 def run_exp_outlier(exp_clust,s,m,c):
     cid = exp_clust['id']
@@ -52,10 +89,10 @@ def run_exp_outlier(exp_clust,s,m,c):
         outs=[]
         outs_by_iter = []
         thresh = 5.6
-        d_thr = 0.1
+        d_thr = 0.2
         dt_tmax = int(thresh/d_thr)
         dt_ticks = 0
-        minspikes_iter = 1
+        minspikes_iter = 5
         # Remove iteration on this layer and make it all happen within find_out
         while (len(outs) < n_to_rem) and (iters<250 or dt_ticks<dt_tmax):
             splits,obi=find_out(thresh,outs,n_to_rem,splits,spikes,feats_keys,mstdict)
@@ -70,8 +107,8 @@ def run_exp_outlier(exp_clust,s,m,c):
 
         # split code
         
-        prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
-        return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba
+        fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba = bench_outlier(mstdict,outs,outs_by_iter,real_spks,hyb_spks,spikes)
+        return fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba,obi
     else:
         return None,None,None,None,None,None,None
 
@@ -107,7 +144,6 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
 
     fdr_onstep = []
     f1_onstep = []
-    prec_rem_onstep = []
     cum_outs = []
     cum_outs_onstep = []
 
@@ -118,16 +154,6 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
             # Keeping track of which spikes we have excluded
             cum_outs.extend(out_onstep)
             cum_outs_onstep.append(cum_outs)
-           
-            # Calculate performance metrics. Since this is for REMOVED spikes--a true positive is removing
-            # a spike that doesnt belong in this case, spikes which don't belong are spikes which were NOT 
-            # inserted by hybridfactory, since hybridfactory clusters are the only ones we know for sure
-            FP = sum(np.in1d(cum_outs,hyb_spks))
-            TP = sum(np.in1d(cum_outs,real_spks))
-            assert (TP+FP) == len(cum_outs)
-            # Calculate what the precision was in removing spikes which are artifical
-            removed_prec = (TP/(TP+FP))
-            prec_rem_onstep.append(removed_prec)
 
             # Updated list of remaining spikes for other perf. metric
             remaining_spks = np.delete(spikes,np.nonzero(np.in1d(spikes,cum_outs))[0])
@@ -144,12 +170,8 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
 
     fdr_ba = [before_fdr]
     f1_ba = [before_f1]
-    f1_max_idx = np.argmax(f1_onstep)
     fdr_min_idx = np.argmin(fdr_onstep)
-    #nspikes_removed = cum_n_outs_onstep[f1_max_idx]
     nspikes_removed = cum_n_outs_onstep[fdr_min_idx]
-    #fdr_ba.append(fdr_onstep[f1_max_idx])
-    #f1_ba.append(f1_onstep[f1_max_idx])
     fdr_ba.append(fdr_onstep[fdr_min_idx])
     f1_ba.append(f1_onstep[fdr_min_idx])
     rand_f1,rand_fdr = rem_random(spikes,nspikes_removed,real_spks,hyb_spks)
@@ -159,7 +181,7 @@ def bench_outlier(mstdict,outs,outs_each_iter,real_spks,hyb_spks,spikes):
     # remove random spikes, choose point which corresponds to this idx to benchmark random with
 
         
-    return prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba
+    return fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,fdr_min_idx,f1_ba
 
 def time_split(splits,nspikes,spikes):
     if nspikes>=5000:
@@ -226,7 +248,7 @@ def find_out(thresh,outs,n_to_rem,splits,spikes,feats_keys,mstdict):
         chunk_size = len(cnk)
         if chunk_size!=0:
             if chunk_size>=min_nspikes:
-                which.append(cnk)
+                which.extend(cnk)
             else:
                 which.extend(cnk)
                 nchunks = (int(min_nspikes)-chunk_size)//chunk_size

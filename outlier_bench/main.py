@@ -67,10 +67,10 @@ except:
     exp_dict = {}
 
 run_ct = 0
-exp_dict.update({'snr':[],'nspikes':[],'fdr_ba':[],'fdr_onstep':[],'f1_ba':[],'f1_onstep':[],'prec_rem_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[],'f1_max_idx':[]})
+exp_dict.update({'snr':[],'nspikes':[],'obi':[],'fdr_ba':[],'fdr_onstep':[],'f1_ba':[],'f1_onstep':[],'cum_nouts':[],'hyb_clu':[],'art%':[],'f1_max_idx':[]})
 
-lfc = [274]
-useclus = False
+lfc = [275]
+useclus = True
 
 if useclus:
     clus = np.nonzero(np.in1d(gt_clus,lfc))[0]
@@ -84,17 +84,17 @@ if 'hyb_clu_list' in dir():
         for i,clu in enumerate(gt_clus):
             print('GT Cluster %d'%clu)
             for x in hyb_clu_list[i].exp_clusts:
-                prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba = outlier.run_exp_outlier(x,s,m,c)
+                fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba,obi = outlier.run_exp_outlier(x,s,m,c)
                 if fdr_onstep:
                     exp_dict['fdr_onstep'].append(fdr_onstep)
                     exp_dict['f1_onstep'].append(f1_onstep)
-                    exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
                     exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                     exp_dict['art%'].append(x['art_pct'])
                     exp_dict['hyb_clu'].append(x['id'])
                     exp_dict['fdr_ba'].append(fdr_ba)
                     exp_dict['f1_ba'].append(f1_ba)
                     exp_dict['f1_max_idx'].append(f1_max_idx)
+                    exp_dict['obi'].append(obi)
                     hybclu_structs.append(x)
                     # Primary channel signal for this cluster
                     trace = traces[:,x['best_c']]
@@ -132,17 +132,17 @@ else:
         hyb_clu_list.append(hyb_clu(clu,true_hyb_spike_times,s,m,c,chans))
         hyb_clu_list[i].link_hybrid(hyb_spike_times,hyb_spike_clus)
         for x in hyb_clu_list[i].exp_clusts:
-            prec_rem_onstep,fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba = outlier.run_exp_outlier(x,s,m,c)
+            fdr_onstep,cum_n_outs_onstep,fdr_ba,f1_onstep,f1_max_idx,f1_ba,obi = outlier.run_exp_outlier(x,s,m,c)
             if fdr_onstep:
                 exp_dict['fdr_onstep'].append(fdr_onstep)
                 exp_dict['f1_onstep'].append(f1_onstep)
-                exp_dict['prec_rem_onstep'].append(prec_rem_onstep)
                 exp_dict['cum_nouts'].append(cum_n_outs_onstep)
                 exp_dict['art%'].append(x['art_pct'])
                 exp_dict['hyb_clu'].append(x['id'])
                 exp_dict['fdr_ba'].append(fdr_ba)
                 exp_dict['f1_ba'].append(f1_ba)
                 exp_dict['f1_max_idx'].append(f1_max_idx)
+                exp_dict['obi'].append(obi)
                 hybclu_structs.append(x)
 
 
@@ -172,9 +172,12 @@ np.save(timestr_dict_npy,exp_dict,allow_pickle=True)
 
 pp = PdfPages(timestr_pdf)
 
-obench_plot.generate_outlier_plots(exp_dict,pp,hperf_ids,hybclu_structs,s,m,c)
-pp.close()
+obench_plot.generate_outlier_plots(exp_dict,pp)
+obench_plot.human_perf_plot(exp_dict,hybclu_structs,pp,s,m,c,hperf_ids)
+obench_plot.isi_fdr_comparison(exp_dict,hybclu_structs,pp,s,m,c)
 
+
+pp.close()
 sys.stdout.close()
 sys.stdout = orig_stdout
 

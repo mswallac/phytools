@@ -10,7 +10,7 @@ from matplotlib import cm
 import sys
 from glob import glob
 
-def generate_splitter_plots(exp_dict,pp):
+def generate_splitter_plots(exp_dict,pp,hperf_ids,hybclu_structs,s,m,c):
     # Prepare arrays for plotting
     f1_ba_arr = np.array(exp_dict['f1_ba'])
     f1_diff_arr = (f1_ba_arr[:,1]-f1_ba_arr[:,0])/(1-f1_ba_arr[:,0])
